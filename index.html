@@ -891,15 +891,18 @@ function doLogin(matricola, password){
     .then(cred=>{
       const uid=cred.user.uid;
       const matr=String(matricola).trim();
-      // Self-heal: ensure account_lookup exists (needed for role-toggle feature)
-      fbDb.ref('account_lookup/'+matr).once('value').then(snap=>{
-        if(!snap.val()) fbDb.ref('account_lookup/'+matr).set(uid).catch(()=>{});
-      });
       return fbDb.ref('account_ruoli/'+uid).once('value').then(snap=>{
         const ruolo=snap.val()||'utente';
         currentRole=ruolo;
         currentMatricola=matr;
         localStorage.setItem('lastMatricola', currentMatricola);
+        // Self-heal: ensure account_lookup exists (needed for role-toggle feature).
+        // Only admins have write permission on this node, so only attempt it for them.
+        if(ruolo==='admin'){
+          fbDb.ref('account_lookup/'+matr).once('value').then(lookupSnap=>{
+            if(!lookupSnap.val()) fbDb.ref('account_lookup/'+matr).set(uid).catch(()=>{});
+          });
+        }
         return ruolo;
       });
     });
