@@ -396,6 +396,7 @@ mark{background:#FFF3CD;border-radius:2px;padding:0 1px}
     <span id="sync-badge" style="display:none;font-size:11px;font-weight:700;color:#22C55E;background:rgba(34,197,94,.15);padding:3px 8px;border-radius:10px;align-items:center;gap:4px">☁️ Online</span>
     <span class="badge-admin" id="mode-badge" style="display:none">Admin</span>
     <button class="icon-btn" id="btn-upload" onclick="handleUploadBtn()" title="Carica Excel">📂</button>
+    <button class="icon-btn" id="btn-change-pwd" onclick="openChangePwd()" title="Cambia password" style="display:none">🔑</button>
     <button class="icon-btn" id="btn-logout-app" onclick="doAppLogout()" title="Esci" style="display:none">🚪</button>
     <input type="file" id="file-input-turni" accept=".xlsx,.xls" style="display:none" onchange="loadExcelTurni(event)">
   </div>
@@ -823,6 +824,7 @@ function initFirebase(){
               document.getElementById('mode-badge').textContent='Admin';
             }
             document.getElementById('btn-logout-app').style.display='flex';
+            document.getElementById('btn-change-pwd').style.display='flex';
             if(currentMatricola && !users.find(u=>u.matricola===currentMatricola)){
               ensureUserRecordMinimal(currentMatricola, currentRole);
             }
@@ -1564,6 +1566,7 @@ function doAppLogin(){
       document.getElementById('mode-badge').style.display='none';
     }
     document.getElementById('btn-logout-app').style.display='flex';
+            document.getElementById('btn-change-pwd').style.display='flex';
 
     // Auto-create dipendente record if this matricola has no entry yet
     // (covers accounts created manually in Firebase Console, e.g. the first admin)
@@ -1634,6 +1637,112 @@ function doAppLogout(){
   document.getElementById('login-password').value='';
   document.getElementById('login-err').textContent='';
   document.getElementById('btn-logout-app').style.display='none';
+  document.getElementById('btn-change-pwd').style.display='none';
+}
+
+/* ══ CAMBIA PASSWORD (utente loggato) ══ */
+function openChangePwd(){
+  document.getElementById('cp-current').value='';
+  document.getElementById('cp-new').value='';
+  document.getElementById('cp-confirm').value='';
+  document.getElementById('cp-err').textContent='';
+  openSheet('change-pwd-sheet');
+}
+
+function saveChangePwd(){
+  const current=document.getElementById('cp-current').value;
+  const newPwd=document.getElementById('cp-new').value;
+  const confirm=document.getElementById('cp-confirm').value;
+  const errEl=document.getElementById('cp-err');
+  errEl.textContent='';
+
+  if(!current||!newPwd||!confirm){errEl.textContent='Compila tutti i campi.';return;}
+  if(newPwd.length<6){errEl.textContent='La nuova password deve avere almeno 6 caratteri.';return;}
+  if(newPwd!==confirm){errEl.textContent='Le password non coincidono.';return;}
+  if(!fbReady||!fbAuth.currentUser){errEl.textContent='Connessione non disponibile.';return;}
+
+  const user=fbAuth.currentUser;
+  const email=user.email;
+  // Re-authenticate with current password first (Firebase requires this for security-sensitive ops)
+  const cred=firebase.auth.EmailAuthProvider.credential(email, current);
+  user.reauthenticateWithCredential(cred).then(()=>{
+    return user.updatePassword(newPwd);
+  }).then(()=>{
+    closeSheet('change-pwd-sheet');
+    showToast('✅ Password aggiornata');
+  }).catch(err=>{
+    if(err.code==='auth/wrong-password'||err.code==='auth/invalid-credential'){
+      errEl.textContent='Password attuale errata.';
+    } else if(err.code==='auth/weak-password'){
+      errEl.textContent='Password troppo debole.';
+    } else {
+      errEl.textContent='Errore: '+err.message;
+    }
+  });
+}
+
+/* ══ RESET PASSWORD (admin → dipendente) ══ */
+function openResetPwd(){
+  if(!currentDetailUser || !currentDetailUser.matricola){
+    showToast('⚠ Questo dipendente non ha un account di accesso');
+    return;
+  }
+  document.getElementById('rp-target-name').textContent =
+    ((currentDetailUser.cognome||currentDetailUser.nome)+' '+(currentDetailUser.nomePropr||'')).trim();
+  document.getElementById('rp-new').value='';
+  document.getElementById('rp-confirm').value='';
+  document.getElementById('rp-err').textContent='';
+  openSheet('reset-pwd-sheet');
+}
+
+function saveResetPwd(){
+  const newPwd=document.getElementById('rp-new').value;
+  const confirm=document.getElementById('rp-confirm').value;
+  const errEl=document.getElementById('rp-err');
+  errEl.textContent='';
+
+  const target=currentDetailUser;
+  if(!target||!target.matricola){errEl.textContent='Dipendente non valido.';return;}
+  if(!newPwd||!confirm){errEl.textContent='Compila tutti i campi.';return;}
+  if(newPwd.length<6){errEl.textContent='Minimo 6 caratteri.';return;}
+  if(newPwd!==confirm){errEl.textContent='Le password non coincidono.';return;}
+  if(!fbReady){errEl.textContent='Connessione non disponibile.';return;}
+
+  const matr=target.matricola;
+  const ruolo=target.ruolo||'utente';
+  const email=matricolaToEmail(matr);
+
+  let secondaryApp;
+  try{
+    secondaryApp = firebase.apps.find(a=>a.name==='secondary') || firebase.initializeApp(firebaseConfig,'secondary');
+  }catch(e){ errEl.textContent='Errore inizializzazione: '+e.message; return; }
+  const secondaryAuth = secondaryApp.auth();
+
+  // The Firebase client SDK cannot overwrite another account's password directly
+  // (that requires the Admin SDK, server-side). The reliable client-side path is:
+  // create a fresh account with the new password. If the matricola's email is
+  // already registered, the admin needs to delete that old entry once in the
+  // Firebase Console (Authentication → Users) — after that this button works
+  // instantly for any future reset.
+  secondaryAuth.createUserWithEmailAndPassword(email, newPwd).then(cred=>{
+    const newUid=cred.user.uid;
+    return fbDb.ref('account_ruoli/'+newUid).set(ruolo).then(()=>{
+      return fbDb.ref('account_lookup/'+matr).set(newUid);
+    }).then(()=>{
+      return secondaryAuth.signOut();
+    }).then(()=>{
+      closeSheet('reset-pwd-sheet');
+      showToast('✅ Password reimpostata per '+matr);
+    });
+  }).catch(err=>{
+    if(err.code==='auth/email-already-in-use'){
+      errEl.innerHTML='Esiste già un account per questa matricola.<br>Vai su Firebase Console → Authentication → Users, elimina l\'utente con email <strong>'+email+'</strong>, poi riprova qui.';
+    } else if(err.code==='auth/weak-password'){
+      errEl.textContent='Password troppo debole.';
+    } else {
+      errEl.textContent='Errore: '+err.message;
+    }
+  });
 }
 
 function renderAdminPanel(){
@@ -1962,8 +2071,17 @@ function openUserDetail(chiave){
   if(telEl){telEl.textContent=u.telefono||'—';telEl.href=u.telefono?'tel:'+u.telefono:'';}
   if(el('ud-matr'))   el('ud-matr').textContent=u.matricola||'—';
   if(el('ud-postaz')) el('ud-postaz').textContent=u.qualifica||'—';
+
+  currentDetailUser = u; // remember for reset-password flow
+  const resetWrap = el('ud-reset-pwd-wrap');
+  if(resetWrap){
+    resetWrap.style.display = (isAdminRole() && u.matricola) ? 'block' : 'none';
+  }
+
   openSheet('user-detail-sheet');
 }
+
+let currentDetailUser = null;
 
 /* ══ UTILS ══ */
 function showToast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2800);}
@@ -2070,7 +2188,43 @@ document.addEventListener('visibilitychange', ()=>{
       <div class="ud-row" style="border-top:1px solid var(--border)"><span class="ud-lbl">Telefono</span><a id="ud-tel" class="ud-val" style="color:var(--purple);text-decoration:none"></a></div>
       <div class="ud-row" style="border-top:1px solid var(--border)"><span class="ud-lbl">Qualifica</span><span id="ud-postaz" class="ud-val"></span></div>
     </div>
+    <div id="ud-reset-pwd-wrap" style="display:none;margin-bottom:10px">
+      <button style="width:100%;padding:12px;border-radius:14px;font-size:14px;font-weight:700;cursor:pointer;border:1.5px solid var(--border2);background:var(--surface2);color:var(--text)" onclick="openResetPwd()">🔑 Reset password dipendente</button>
+    </div>
     <button style="width:100%;padding:14px;border-radius:14px;font-size:15px;font-weight:700;cursor:pointer;border:none;background:var(--purple);color:white" onclick="closeSheet('user-detail-sheet')">Chiudi</button>
+  </div>
+</div>
+
+<!-- Change own password -->
+<div class="overlay" id="change-pwd-sheet">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <h2>🔑 Cambia password</h2>
+    <p style="font-size:13px;color:var(--text2);margin-bottom:16px">Inserisci la password attuale e quella nuova.</p>
+    <div class="field"><label>Password attuale</label><input type="password" id="cp-current" placeholder="Password attuale"></div>
+    <div class="field"><label>Nuova password</label><input type="password" id="cp-new" placeholder="Almeno 6 caratteri"></div>
+    <div class="field"><label>Conferma nuova password</label><input type="password" id="cp-confirm" placeholder="Ripeti la nuova password"></div>
+    <div class="error-msg" id="cp-err"></div>
+    <div class="sheet-btns">
+      <button class="btn-cancel" onclick="closeSheet('change-pwd-sheet')">Annulla</button>
+      <button class="btn-ok" onclick="saveChangePwd()">Salva</button>
+    </div>
+  </div>
+</div>
+
+<!-- Admin: reset password for a dipendente -->
+<div class="overlay" id="reset-pwd-sheet">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <h2>🔑 Reset password</h2>
+    <p style="font-size:13px;color:var(--text2);margin-bottom:16px">Stai impostando una nuova password per <strong id="rp-target-name"></strong>. L'account verrà ricreato con la stessa matricola e lo stesso ruolo.</p>
+    <div class="field"><label>Nuova password</label><input type="password" id="rp-new" placeholder="Almeno 6 caratteri"></div>
+    <div class="field"><label>Conferma nuova password</label><input type="password" id="rp-confirm" placeholder="Ripeti la nuova password"></div>
+    <div class="error-msg" id="rp-err"></div>
+    <div class="sheet-btns">
+      <button class="btn-cancel" onclick="closeSheet('reset-pwd-sheet')">Annulla</button>
+      <button class="btn-ok" onclick="saveResetPwd()">Reimposta</button>
+    </div>
   </div>
 </div>
 
