@@ -1215,7 +1215,7 @@ function renderTurni(){
             <div class="dt-user-stat-val">${filtered.filter(d=>d.assenza).length}</div>
             <div class="dt-user-stat-lbl">assenze</div>
           </div>`:''}
-          <button onclick="exportUserExcel('${selUser.replace(/\\/g,'\\\\').replace(/'/g,"\\'")}')" title="Esporta turni" style="background:var(--purple-lt);color:var(--purple);border:none;border-radius:10px;width:36px;height:36px;font-size:16px;cursor:pointer;flex-shrink:0">⬇</button>
+          ${(isAdminRole()||selUser===getOwnNomeChiave())?`<button onclick="exportUserExcel('${selUser.replace(/\\/g,'\\\\').replace(/'/g,"\\'")}')" title="Esporta turni" style="background:var(--purple-lt);color:var(--purple);border:none;border-radius:10px;width:36px;height:36px;font-size:16px;cursor:pointer;flex-shrink:0">⬇</button>`:''}
         </div>
         <!-- turni table -->
         <div class="dt-table-wrap">
@@ -1681,70 +1681,6 @@ function saveChangePwd(){
   });
 }
 
-/* ══ MODIFICA DATI DIPENDENTE (admin) ══ */
-function openEditEmployee(){
-  const u=currentDetailUser;
-  if(!u){showToast('⚠ Nessun dipendente selezionato');return;}
-  document.getElementById('ee-nome').value=u.nomePropr||'';
-  document.getElementById('ee-cognome').value=u.cognome||'';
-  document.getElementById('ee-tel').value=u.telefono||'';
-  document.getElementById('ee-qualifica').value=u.qualifica||'';
-  document.getElementById('ee-matr').value=u.matricola||'';
-  document.getElementById('ee-err').textContent='';
-  openSheet('edit-employee-sheet');
-}
-
-function saveEditEmployee(){
-  const u=currentDetailUser;
-  const errEl=document.getElementById('ee-err');
-  errEl.textContent='';
-  if(!u){errEl.textContent='Dipendente non valido.';return;}
-
-  const nome=document.getElementById('ee-nome').value.trim();
-  const cognome=document.getElementById('ee-cognome').value.trim();
-  const tel=document.getElementById('ee-tel').value.trim();
-  const qualifica=document.getElementById('ee-qualifica').value.trim();
-
-  if(!nome&&!cognome){errEl.textContent='Inserisci almeno nome o cognome.';return;}
-
-  const oldChiave = u.nome;          // current lookup key used across data[]
-  const newChiave = cognome || nome; // new lookup key after the edit
-
-  // Update the user record in place
-  u.nomePropr = nome;
-  u.cognome = cognome;
-  u.telefono = tel;
-  u.qualifica = qualifica;
-  u.nome = newChiave;
-
-  // If the lookup key (cognome/nome) changed, update every turno record
-  // that referenced the old key, so existing shifts stay linked to this person.
-  if(newChiave !== oldChiave){
-    data.forEach(d=>{
-      if(d.nome === oldChiave){
-        d.nome = newChiave;
-        d.cognome = cognome;
-        d.nomePropr = nome;
-        d.qualifica = qualifica || d.qualifica;
-      }
-    });
-  } else {
-    // Same key, but qualifica/cognome/nomePropr might still need syncing on turni rows
-    data.forEach(d=>{
-      if(d.nome === newChiave){
-        d.cognome = cognome;
-        d.nomePropr = nome;
-      }
-    });
-  }
-
-  closeSheet('edit-employee-sheet');
-  buildUserChips();renderTurni();renderAdminPanel();pushToFirebase();
-  // Refresh the detail sheet in place with the updated info
-  openUserDetail(newChiave);
-  showToast('✅ Dati aggiornati');
-}
-
 /* ══ RESET PASSWORD (admin → dipendente) ══ */
 function openResetPwd(){
   if(!currentDetailUser || !currentDetailUser.matricola){
@@ -1956,7 +1892,20 @@ function saveNewUser(){
   });
 }
 
+function getOwnNomeChiave(){
+  const u=users.find(u=>u.matricola===currentMatricola);
+  return u?u.nome:null;
+}
+
 function exportUserExcel(nome){
+  // Non-admin users may only export their own shifts.
+  if(!isAdminRole()){
+    const ownChiave=getOwnNomeChiave();
+    if(!ownChiave || nome!==ownChiave){
+      showToast('⚠ Puoi esportare solo i tuoi turni');
+      return;
+    }
+  }
   function thin(){return{top:{style:'thin',color:{rgb:'CCCCCC'}},bottom:{style:'thin',color:{rgb:'CCCCCC'}},left:{style:'thin',color:{rgb:'CCCCCC'}},right:{style:'thin',color:{rgb:'CCCCCC'}}};}
   function thick(){return{top:{style:'medium',color:{rgb:'534AB7'}},bottom:{style:'medium',color:{rgb:'534AB7'}},left:{style:'medium',color:{rgb:'534AB7'}},right:{style:'medium',color:{rgb:'534AB7'}}};}
   function c(v,s,t='s'){return{v,s,t};}
@@ -2136,11 +2085,7 @@ function openUserDetail(chiave){
   if(el('ud-matr'))   el('ud-matr').textContent=u.matricola||'—';
   if(el('ud-postaz')) el('ud-postaz').textContent=u.qualifica||'—';
 
-  currentDetailUser = u; // remember for edit/reset-password flows
-  const editWrap = el('ud-edit-wrap');
-  if(editWrap){
-    editWrap.style.display = isAdminRole() ? 'block' : 'none';
-  }
+  currentDetailUser = u; // remember for reset-password flow
   const resetWrap = el('ud-reset-pwd-wrap');
   if(resetWrap){
     resetWrap.style.display = (isAdminRole() && u.matricola) ? 'block' : 'none';
@@ -2256,32 +2201,10 @@ document.addEventListener('visibilitychange', ()=>{
       <div class="ud-row" style="border-top:1px solid var(--border)"><span class="ud-lbl">Telefono</span><a id="ud-tel" class="ud-val" style="color:var(--purple);text-decoration:none"></a></div>
       <div class="ud-row" style="border-top:1px solid var(--border)"><span class="ud-lbl">Qualifica</span><span id="ud-postaz" class="ud-val"></span></div>
     </div>
-    <div id="ud-edit-wrap" style="display:none;margin-bottom:10px">
-      <button style="width:100%;padding:12px;border-radius:14px;font-size:14px;font-weight:700;cursor:pointer;border:1.5px solid var(--purple);background:var(--purple-lt);color:var(--purple)" onclick="openEditEmployee()">✏️ Modifica dati dipendente</button>
-    </div>
     <div id="ud-reset-pwd-wrap" style="display:none;margin-bottom:10px">
       <button style="width:100%;padding:12px;border-radius:14px;font-size:14px;font-weight:700;cursor:pointer;border:1.5px solid var(--border2);background:var(--surface2);color:var(--text)" onclick="openResetPwd()">🔑 Reset password dipendente</button>
     </div>
     <button style="width:100%;padding:14px;border-radius:14px;font-size:15px;font-weight:700;cursor:pointer;border:none;background:var(--purple);color:white" onclick="closeSheet('user-detail-sheet')">Chiudi</button>
-  </div>
-</div>
-
-<!-- Admin: edit employee data -->
-<div class="overlay" id="edit-employee-sheet">
-  <div class="sheet">
-    <div class="sheet-handle"></div>
-    <h2>✏️ Modifica dipendente</h2>
-    <div class="field"><label>Nome</label><input type="text" id="ee-nome" placeholder="Es. Mario"></div>
-    <div class="field"><label>Cognome</label><input type="text" id="ee-cognome" placeholder="Es. Rossi"></div>
-    <div class="field"><label>Telefono</label><input type="tel" id="ee-tel" placeholder="Es. 333 1234567"></div>
-    <div class="field"><label>Qualifica</label><input type="text" id="ee-qualifica" placeholder="Es. Cassa 1"></div>
-    <div class="field"><label>Matricola</label><input type="text" id="ee-matr" placeholder="Es. 69307" disabled style="opacity:.6"></div>
-    <div style="font-size:11px;color:var(--text3);margin-top:-8px;margin-bottom:14px">La matricola non è modificabile da qui (è legata all'account di accesso).</div>
-    <div class="error-msg" id="ee-err"></div>
-    <div class="sheet-btns">
-      <button class="btn-cancel" onclick="closeSheet('edit-employee-sheet')">Annulla</button>
-      <button class="btn-ok" onclick="saveEditEmployee()">Salva</button>
-    </div>
   </div>
 </div>
 
