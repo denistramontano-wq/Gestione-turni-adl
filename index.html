@@ -571,7 +571,7 @@ mark{background:#FFF3CD;border-radius:2px;padding:0 1px}
     <div class="field"><label>Giorno del mese</label>
       <select id="at-giorno"><option value="">— Nessun giorno specifico —</option></select>
     </div>
-    <div class="field"><label>Qualifica</label><input type="text" id="at-posto" placeholder="Es. Cassa 1"></div>
+
     <div class="field"><label>Tipo assenza</label>
       <select id="at-assenza">
         <option value="">— Nessuna assenza —</option>
@@ -652,7 +652,7 @@ mark{background:#FFF3CD;border-radius:2px;padding:0 1px}
     <div class="field"><label>Giorno del mese</label>
       <select id="et-giorno"><option value="">— Nessun giorno specifico —</option></select>
     </div>
-    <div class="field"><label>Qualifica</label><input type="text" id="et-posto"></div>
+
     <div class="field"><label>Tipo assenza</label>
       <select id="et-assenza">
         <option value="">— Nessuna assenza —</option>
@@ -1281,19 +1281,22 @@ function renderTurni(){
   function renderLineSection(line){
     let mat, pom;
     if(line.qualifica){
-      // qualifica-based section: find users with this qualifica and their turni
+      // Capi section: people with qualifica CO, PLUS anyone whose turno
+      // has the FF (Facente Funzione) flag active — they move here regardless
+      // of which line their turno code belongs to.
       const nomiCapi=users.filter(u=>u.qualifica===line.qualifica).map(u=>u.nome);
-      const capiTurni=filtered.filter(d=>nomiCapi.includes(d.nome));
+      const capiTurni=filtered.filter(d=>nomiCapi.includes(d.nome)||d.ff);
       mat=capiTurni.filter(d=>TURNO_MAP[d.turno]?.grp==='mat'||d.turno==='M');
       pom=capiTurni.filter(d=>TURNO_MAP[d.turno]?.grp==='pom'||d.turno==='P');
       if(!mat.length&&!pom.length) return '';
     } else {
-      mat=filtered.filter(d=>line.turniMat.includes(d.turno));
-      pom=filtered.filter(d=>line.turniPom.includes(d.turno));
+      // Normal line section: exclude FF-flagged shifts, they belong to Capi instead
+      mat=filtered.filter(d=>line.turniMat.includes(d.turno)&&!d.ff);
+      pom=filtered.filter(d=>line.turniPom.includes(d.turno)&&!d.ff);
       if(!mat.length&&!pom.length) return '';
     }
     const total=mat.length+pom.length;
-    const assenti=line.qualifica ? [...mat,...pom].filter(d=>d.assenza).length : filtered.filter(d=>[...line.turniMat,...line.turniPom].includes(d.turno)&&d.assenza).length;
+    const assenti=line.qualifica ? [...mat,...pom].filter(d=>d.assenza).length : filtered.filter(d=>[...line.turniMat,...line.turniPom].includes(d.turno)&&!d.ff&&d.assenza).length;
     const collapsed=lineSectionState[line.key]===false?' collapsed':'';
     return `<div class="line-section${collapsed}" id="ls-${line.key}" style="margin-bottom:8px;background:var(--surface);border-radius:14px;border:1px solid var(--border);overflow:hidden">
       <div class="line-section-hdr-compact" onclick="toggleLineSection('${line.key}')">
@@ -1449,7 +1452,6 @@ function saveTurno(){
   const turno=document.getElementById('at-turno').value;
   const mese=document.getElementById('at-mese').value;
   const anno=parseInt(document.getElementById('at-anno').value);
-  const posto=document.getElementById('at-posto').value;
   const note=document.getElementById('at-note').value;
   const assenza=document.getElementById('at-assenza')?.value||'';
   const giorno=parseInt(document.getElementById('at-giorno').value)||null;
@@ -1457,7 +1459,7 @@ function saveTurno(){
   const u=users.find(u=>u.nome===nome);
   const ff=document.getElementById('at-ff')?.checked||false;
   data.push({nome,nomePropr:u?.nomePropr||'',cognome:u?.cognome||nome,
-    qualifica:posto||u?.qualifica||'',mese,anno,giorno,turno,note,assenza,ff});
+    qualifica:u?.qualifica||'',mese,anno,giorno,turno,note,assenza,ff});
   closeSheet('add-turno-sheet');
   selMonth=MONTHS.indexOf(mese);selYear=anno;
   if(giorno)turniSelDay=giorno;
@@ -1475,8 +1477,6 @@ function openEditTurno(idx){
     Array.from({length:dim},(_,i)=>{const g=i+1;const dow=GIORNI_S[new Date(d.anno,meseIdx,g).getDay()];return`<option value="${g}"${d.giorno===g?' selected':''}>${g} ${dow}</option>`;}).join('');
   const et=document.getElementById('et-turno');
   if(et) et.value=d.turno;
-  const ep=document.getElementById('et-posto');
-  if(ep) ep.value=d.qualifica||'';
   const en=document.getElementById('et-note');
   if(en) en.value=d.note||'';
   const ea=document.getElementById('et-assenza');
@@ -1489,7 +1489,6 @@ function openEditTurno(idx){
 function saveEditTurno(){
   if(editIdx===null)return;
   data[editIdx].turno   =document.getElementById('et-turno').value;
-  data[editIdx].qualifica=document.getElementById('et-posto').value;
   data[editIdx].note    =document.getElementById('et-note').value;
   data[editIdx].assenza =document.getElementById('et-assenza')?.value||'';
   data[editIdx].ff      =document.getElementById('et-ff')?.checked||false;
