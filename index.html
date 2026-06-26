@@ -1371,25 +1371,43 @@ function renderTurni(){
     </div>`;
   }
 
-  // Altro section
-  const altroItems=filtered.filter(d=>!allTurniInLines.includes(d.turno));
+  // Split the catch-all into two groups:
+  // - Assenti: Scomputo and Riposo
+  // - Altro: everything else not in a line (e.g. Giornata)
+  const restItems=filtered.filter(d=>!allTurniInLines.includes(d.turno));
+  const assentiItems=restItems.filter(d=>d.turno==='Scomputo'||d.turno==='Riposo');
+  const altroItems=restItems.filter(d=>d.turno!=='Scomputo'&&d.turno!=='Riposo');
 
   // Build layout
   const mainSections=LINES.map(renderLineSection).filter(Boolean).join('');
+
+  const assentiSection=assentiItems.length?`
+    <div style="background:var(--surface);border-radius:14px;border:1px solid var(--border);overflow:hidden;margin-bottom:10px">
+      <div style="padding:8px 10px 4px;text-align:center">
+        <span class="line-badge" style="background:#6B7280">Assenti</span>
+      </div>
+      <div style="padding:4px 8px 10px">
+        <div class="altro-lbl">Scomputo · Riposo</div>
+        ${assentiItems.map(tBox).join('')}
+      </div>
+    </div>`:'';
+
   const altroSection=altroItems.length?`
     <div style="background:var(--surface);border-radius:14px;border:1px solid var(--border);overflow:hidden">
       <div style="padding:8px 10px 4px;text-align:center">
         <span class="line-badge" style="background:#374151">Altro</span>
       </div>
       <div style="padding:4px 8px 10px">
-        <div class="altro-lbl">Tutti</div>
+        <div class="altro-lbl">Giornata</div>
         ${altroItems.map(tBox).join('')}
       </div>
     </div>`:'';
 
+  const sideColumn = (assentiSection||altroSection) ? `<div class="grid-altro">${assentiSection}${altroSection}</div>` : '';
+
   cl.innerHTML=`<div class="grid-layout">
     <div class="grid-main">${mainSections||'<div class="empty-state"><div class="empty-icon">📅</div><div class="empty-title">Nessun turno</div></div>'}</div>
-    ${altroSection?`<div class="grid-altro">${altroSection}</div>`:''}
+    ${sideColumn}
   </div>`;
 
 }
