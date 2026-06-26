@@ -1831,6 +1831,30 @@ function renderComunicazioni(){
     return;
   }
 
+  if(isAdminRole()){
+    list.innerHTML=mine.map(c=>{
+      const dateStr = c.data ? new Date(c.data).toLocaleDateString('it-IT',{day:'numeric',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'}) : '';
+      const destLabel = destinatarioLabel(c.scope);
+      const totDest = numDestinatari(c.scope);
+      const numLetti = (c.lettoDa||[]).length;
+      const scopeClass = c.scope==='__ALL__' ? 'all' : 'single';
+      return `<div class="comm-card">
+        <div class="comm-card-top">
+          <span class="comm-card-scope ${scopeClass}">A: ${destLabel}</span>
+          <span class="comm-card-date">${dateStr}</span>
+        </div>
+        <div class="comm-card-title">${c.titolo||''}</div>
+        <div class="comm-card-body">${(c.testo||'').replace(/</g,'&lt;')}</div>
+        <div class="comm-card-from">Letta da ${numLetti}/${totDest} destinatari</div>
+        <div style="display:flex;gap:8px;margin-top:10px">
+          <button class="card-action-btn btn-edit" onclick="event.stopPropagation();openEditComm('${c.id}')">✏️ Modifica</button>
+          <button class="card-action-btn btn-del" onclick="event.stopPropagation();confirmDeleteComm('${c.id}')">🗑 Elimina</button>
+        </div>
+      </div>`;
+    }).join('');
+    return;
+  }
+
   list.innerHTML=mine.map(c=>{
     const unread=isCommUnread(c);
     const scopeLabel = c.scope==='__ALL__' ? '📢 Tutti' : '👤 Personale';
@@ -1848,6 +1872,46 @@ function renderComunicazioni(){
   }).join('');
 }
 
+function destinatarioLabel(scope){
+  if(scope==='__ALL__') return '📢 Tutti i dipendenti';
+  const u=users.find(u=>u.nome===scope);
+  return u ? ((u.cognome||u.nome)+' '+(u.nomePropr||'')).trim() : scope;
+}
+
+function numDestinatari(scope){
+  if(scope==='__ALL__') return users.filter(u=>u.matricola).length;
+  return users.find(u=>u.nome===scope) ? 1 : 0;
+}
+
+function openEditComm(id){
+  const c=comunicazioni.find(c=>c.id===id);
+  if(!c)return;
+  editCommId=id;
+  const sorted=[...users].sort((a,b)=>(a.cognome||a.nome).localeCompare(b.cognome||b.nome,'it'));
+  const sel=document.getElementById('sc-dest');
+  sel.innerHTML='<option value="__ALL__">📢 Tutti i dipendenti</option>'+
+    sorted.map(u=>`<option value="${u.nome}">${u.cognome||u.nome} ${u.nomePropr||''}</option>`).join('');
+  sel.value=c.scope;
+  document.getElementById('sc-titolo').value=c.titolo||'';
+  document.getElementById('sc-testo').value=c.testo||'';
+  document.getElementById('sc-err').textContent='';
+  document.querySelector('#send-comm-sheet h2').textContent='✏️ Modifica comunicazione';
+  document.querySelector('#send-comm-sheet .btn-ok').textContent='Salva modifiche';
+  openSheet('send-comm-sheet');
+}
+
+function confirmDeleteComm(id){
+  const c=comunicazioni.find(c=>c.id===id);
+  if(!c)return;
+  showConfirm('Elimina comunicazione',
+    `Eliminare la comunicazione <strong>${c.titolo||''}</strong>?`,
+    ()=>{
+      comunicazioni=comunicazioni.filter(x=>x.id!==id);
+      renderComunicazioni();updateCommBadge();pushComunicazioni();
+      showToast('Comunicazione eliminata');
+    });
+}
+
 function markCommRead(id){
   const c=comunicazioni.find(c=>c.id===id);
   if(!c)return;
@@ -1860,7 +1924,10 @@ function markCommRead(id){
   }
 }
 
+let editCommId=null;
+
 function openSendComm(){
+  editCommId=null;
   const sorted=[...users].sort((a,b)=>(a.cognome||a.nome).localeCompare(b.cognome||b.nome,'it'));
   const sel=document.getElementById('sc-dest');
   sel.innerHTML='<option value="__ALL__">📢 Tutti i dipendenti</option>'+
@@ -1868,6 +1935,8 @@ function openSendComm(){
   document.getElementById('sc-titolo').value='';
   document.getElementById('sc-testo').value='';
   document.getElementById('sc-err').textContent='';
+  document.querySelector('#send-comm-sheet h2').textContent='✉️ Invia comunicazione';
+  document.querySelector('#send-comm-sheet .btn-ok').textContent='Invia';
   openSheet('send-comm-sheet');
 }
 
@@ -1881,6 +1950,19 @@ function saveSendComm(){
   if(!titolo){errEl.textContent='Inserisci un titolo.';return;}
   if(!testo){errEl.textContent='Inserisci il messaggio.';return;}
   if(!fbReady){errEl.textContent='Connessione non disponibile.';return;}
+
+  if(editCommId){
+    // Editing an existing communication: update in place, reset read receipts
+    // since the content changed and recipients should re-read it.
+    const c=comunicazioni.find(c=>c.id===editCommId);
+    if(!c){errEl.textContent='Comunicazione non trovata.';return;}
+    c.scope=dest; c.titolo=titolo; c.testo=testo; c.lettoDa=[];
+    closeSheet('send-comm-sheet');
+    renderComunicazioni();updateCommBadge();pushComunicazioni();
+    showToast('✅ Comunicazione aggiornata');
+    editCommId=null;
+    return;
+  }
 
   const mittente=((users.find(u=>u.matricola===currentMatricola)?.cognome)||currentMatricola||'Admin');
 
