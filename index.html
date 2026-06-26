@@ -329,6 +329,20 @@ mark{background:#FFF3CD;border-radius:2px;padding:0 1px}
 .ud-lbl{font-size:12px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.04em;flex-shrink:0}
 .ud-val{font-size:14px;font-weight:500;color:var(--text);text-align:right}
 
+/* ── COMUNICAZIONI ── */
+.comm-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:14px 16px;margin-bottom:10px;position:relative}
+.comm-card.unread{border-color:var(--purple);background:var(--purple-lt)}
+.comm-card.unread::before{content:'';position:absolute;top:14px;right:14px;width:8px;height:8px;border-radius:50%;background:#DC2626}
+.comm-card-top{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.comm-card-scope{font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px;text-transform:uppercase;letter-spacing:.04em}
+.comm-card-scope.all{background:var(--purple-lt);color:var(--purple)}
+.comm-card-scope.single{background:#D0E4F7;color:#0C447C}
+.comm-card-date{font-size:11px;color:var(--text3);margin-left:auto}
+.comm-card-title{font-size:15px;font-weight:700;color:var(--text);margin-bottom:4px}
+.comm-card-body{font-size:13px;color:var(--text2);line-height:1.5;white-space:pre-wrap}
+.comm-card-from{font-size:11px;color:var(--text3);margin-top:8px}
+.comm-empty{padding:48px 24px;text-align:center;color:var(--text2)}
+
 /* ── PWD LOCKED ── */
 .ff-toggle{display:flex;align-items:center;gap:12px;padding:14px;border-radius:14px;border:2px solid var(--border);background:var(--surface2);cursor:pointer;transition:all .2s;position:relative}
 .ff-toggle:active{transform:scale(.98)}
@@ -452,7 +466,19 @@ mark{background:#FFF3CD;border-radius:2px;padding:0 1px}
     </div>
   </div>
 
-  <!-- ══ PAGE: ADMIN
+  <!-- ══ PAGE: COMUNICAZIONI ══ -->
+  <div class="page" id="page-comunicazioni">
+    <div class="sec-header">
+      <div>
+        <div class="sec-title">📢 Comunicazioni</div>
+        <div class="sec-sub" id="comm-sub"></div>
+      </div>
+    </div>
+    <div id="comm-admin-actions" style="display:none;padding:0 16px 12px">
+      <button class="btn-ghost" style="width:100%;padding:12px;font-size:14px" onclick="openSendComm()">✉️ Invia comunicazione</button>
+    </div>
+    <div id="comm-list" style="padding:0 16px"></div>
+  </div>
 
   <!-- ══ PAGE: ADMIN ══ -->
   <div class="page" id="page-admin">
@@ -488,6 +514,11 @@ mark{background:#FFF3CD;border-radius:2px;padding:0 1px}
           <div class="admin-row-text"><div class="admin-row-title">Esporta Excel</div><div class="admin-row-sub">Scarica i turni aggiornati</div></div>
           <span class="admin-row-arrow">›</span>
         </div>
+        <div class="admin-row" onclick="openSendComm()">
+          <span class="admin-row-icon">✉️</span>
+          <div class="admin-row-text"><div class="admin-row-title">Invia comunicazione</div><div class="admin-row-sub">A un dipendente o a tutti</div></div>
+          <span class="admin-row-arrow">›</span>
+        </div>
       </div>
       <div class="admin-section-lbl">Dipendenti (<span id="user-count">0</span>)</div>
       <div class="user-list-card" id="admin-user-list"></div>
@@ -500,6 +531,10 @@ mark{background:#FFF3CD;border-radius:2px;padding:0 1px}
 <nav class="bottom-nav">
   <button class="nav-item active" id="nav-turni" onclick="switchPage('turni',this)">
     <span class="nav-icon">📅</span><span class="nav-label">Turni</span>
+  </button>
+  <button class="nav-item" id="nav-comunicazioni" onclick="switchPage('comunicazioni',this)" style="position:relative">
+    <span class="nav-icon">📢</span><span class="nav-label">Comunicazioni</span>
+    <span id="comm-badge" style="display:none;position:absolute;top:2px;right:18%;background:#DC2626;color:white;font-size:10px;font-weight:800;min-width:16px;height:16px;border-radius:8px;display:flex;align-items:center;justify-content:center;padding:0 4px">0</span>
   </button>
   <button class="nav-item" id="nav-admin" onclick="switchPage('admin',this)">
     <span class="nav-icon">⚙️</span><span class="nav-label">Admin</span>
@@ -828,7 +863,7 @@ function initFirebase(){
             if(currentMatricola && !users.find(u=>u.matricola===currentMatricola)){
               ensureUserRecordMinimal(currentMatricola, currentRole);
             }
-            buildUserChips();renderTurni();renderAdminPanel();
+            buildUserChips();renderTurni();renderAdminPanel();renderComunicazioni();updateCommBadge();
           }).catch(()=>{});
         }
       } else {
@@ -865,11 +900,19 @@ function listenRemoteData(){
     if(val){
       suppressSync=true;
       users=Array.isArray(val)?val.filter(Boolean):Object.values(val);
-      buildUserChips();renderTurni();renderAdminPanel();
+      buildUserChips();renderTurni();renderAdminPanel();renderComunicazioni();updateCommBadge();
       document.getElementById('turni-empty').style.display = data.length||users.length ? 'none':'';
       document.getElementById('turni-content').style.display = data.length||users.length ? 'block':'none';
       suppressSync=false;
     }
+  });
+  fbDb.ref('comunicazioni').on('value', snap=>{
+    const val=snap.val();
+    suppressSync=true;
+    comunicazioni = val ? (Array.isArray(val)?val.filter(Boolean):Object.values(val)) : [];
+    renderComunicazioni();
+    updateCommBadge();
+    suppressSync=false;
   });
 }
 
@@ -877,6 +920,11 @@ function pushToFirebase(){
   if(!fbReady||suppressSync||currentRole!=='admin')return;
   fbDb.ref('turni').set(data).catch(e=>console.warn('Sync turni:',e.message));
   fbDb.ref('utenti').set(users).catch(e=>console.warn('Sync utenti:',e.message));
+}
+
+function pushComunicazioni(){
+  if(!fbReady)return; // any logged-in user can write here (to mark as read)
+  fbDb.ref('comunicazioni').set(comunicazioni).catch(e=>console.warn('Sync comunicazioni:',e.message));
 }
 
 /* ══ AUTENTICAZIONE (matricola + password) ══ */
@@ -920,6 +968,7 @@ function syncIsAdminFlag(){ isAdmin = (currentRole==='admin'); }
 
 let isAdmin=false;
 let data=[], users=[];
+let comunicazioni=[]; // [{id, scope:'__ALL__'|nomeChiave, titolo, testo, mittente, data, lettoDa:[matricole]}]
 let selUser='__ALL__';
 let selMonth=new Date().getMonth();
 let selYear=new Date().getFullYear();
@@ -934,11 +983,12 @@ function switchPage(page, btn){
   document.getElementById('page-'+page).classList.add('active');
   btn.classList.add('active');
   document.getElementById('scroll-area').scrollTop=0;
-  document.getElementById('btn-upload').style.display=(page==='admin')?'none':'flex';
+  document.getElementById('btn-upload').style.display=(page==='admin'||page==='comunicazioni')?'none':'flex';
   // Always re-render the page content with the latest in-memory data,
   // so switching back to a tab shows up-to-date info without needing a manual refresh
   if(page==='admin') renderAdminPanel();
   else if(page==='turni') { buildTurniDayStrip(); renderTurni(); }
+  else if(page==='comunicazioni') { renderComunicazioni(); }
 }
 
 /* ══ UPLOAD ══ */
@@ -1571,7 +1621,7 @@ function doAppLogin(){
     // (covers accounts created manually in Firebase Console, e.g. the first admin)
     ensureUserRecord(matricola, password, ruolo);
 
-    buildUserChips();renderTurni();renderAdminPanel();
+    buildUserChips();renderTurni();renderAdminPanel();renderComunicazioni();updateCommBadge();
     showToast('✅ Accesso effettuato'+(ruolo==='admin'?' come admin':''));
   }).catch(err=>{
     console.warn('Login error:', err.code, err.message);
@@ -1742,6 +1792,112 @@ function saveResetPwd(){
       errEl.textContent='Errore: '+err.message;
     }
   });
+}
+
+/* ══ COMUNICAZIONI ══ */
+function getMyComunicazioni(){
+  if(isAdminRole()){
+    // Admin sees everything (sent overview), but unread tracking still uses their own matricola
+    return comunicazioni;
+  }
+  return comunicazioni.filter(c=>c.scope==='__ALL__'||c.scope===getOwnNomeChiave());
+}
+
+function isCommUnread(c){
+  return !(c.lettoDa||[]).includes(currentMatricola);
+}
+
+function updateCommBadge(){
+  const mine=getMyComunicazioni();
+  const unread=mine.filter(isCommUnread).length;
+  const badge=document.getElementById('comm-badge');
+  if(!badge)return;
+  if(unread>0){
+    badge.textContent=unread>99?'99+':unread;
+    badge.style.display='flex';
+  } else {
+    badge.style.display='none';
+  }
+}
+
+function renderComunicazioni(){
+  const mine=[...getMyComunicazioni()].sort((a,b)=>(b.data||0)-(a.data||0));
+  document.getElementById('comm-sub').textContent = mine.length ? `${mine.length} comunicazion${mine.length===1?'e':'i'}` : '';
+  document.getElementById('comm-admin-actions').style.display = isAdminRole() ? 'block' : 'none';
+
+  const list=document.getElementById('comm-list');
+  if(!mine.length){
+    list.innerHTML='<div class="comm-empty"><div style="font-size:40px;margin-bottom:10px">📭</div>Nessuna comunicazione</div>';
+    return;
+  }
+
+  list.innerHTML=mine.map(c=>{
+    const unread=isCommUnread(c);
+    const scopeLabel = c.scope==='__ALL__' ? '📢 Tutti' : '👤 Personale';
+    const scopeClass = c.scope==='__ALL__' ? 'all' : 'single';
+    const dateStr = c.data ? new Date(c.data).toLocaleDateString('it-IT',{day:'numeric',month:'short',year:'numeric'}) : '';
+    return `<div class="comm-card${unread?' unread':''}" onclick="markCommRead('${c.id}')">
+      <div class="comm-card-top">
+        <span class="comm-card-scope ${scopeClass}">${scopeLabel}</span>
+        <span class="comm-card-date">${dateStr}</span>
+      </div>
+      <div class="comm-card-title">${c.titolo||''}</div>
+      <div class="comm-card-body">${(c.testo||'').replace(/</g,'&lt;')}</div>
+      ${c.mittente?`<div class="comm-card-from">Da: ${c.mittente}</div>`:''}
+    </div>`;
+  }).join('');
+}
+
+function markCommRead(id){
+  const c=comunicazioni.find(c=>c.id===id);
+  if(!c)return;
+  if(!c.lettoDa) c.lettoDa=[];
+  if(!c.lettoDa.includes(currentMatricola)){
+    c.lettoDa.push(currentMatricola);
+    renderComunicazioni();
+    updateCommBadge();
+    pushComunicazioni();
+  }
+}
+
+function openSendComm(){
+  const sorted=[...users].sort((a,b)=>(a.cognome||a.nome).localeCompare(b.cognome||b.nome,'it'));
+  const sel=document.getElementById('sc-dest');
+  sel.innerHTML='<option value="__ALL__">📢 Tutti i dipendenti</option>'+
+    sorted.map(u=>`<option value="${u.nome}">${u.cognome||u.nome} ${u.nomePropr||''}</option>`).join('');
+  document.getElementById('sc-titolo').value='';
+  document.getElementById('sc-testo').value='';
+  document.getElementById('sc-err').textContent='';
+  openSheet('send-comm-sheet');
+}
+
+function saveSendComm(){
+  const dest=document.getElementById('sc-dest').value;
+  const titolo=document.getElementById('sc-titolo').value.trim();
+  const testo=document.getElementById('sc-testo').value.trim();
+  const errEl=document.getElementById('sc-err');
+  errEl.textContent='';
+
+  if(!titolo){errEl.textContent='Inserisci un titolo.';return;}
+  if(!testo){errEl.textContent='Inserisci il messaggio.';return;}
+  if(!fbReady){errEl.textContent='Connessione non disponibile.';return;}
+
+  const mittente=((users.find(u=>u.matricola===currentMatricola)?.cognome)||currentMatricola||'Admin');
+
+  comunicazioni.push({
+    id: 'c'+Date.now()+Math.random().toString(36).slice(2,7),
+    scope: dest,
+    titolo, testo,
+    mittente,
+    data: Date.now(),
+    lettoDa: []
+  });
+
+  closeSheet('send-comm-sheet');
+  renderComunicazioni();
+  updateCommBadge();
+  pushComunicazioni();
+  showToast('✅ Comunicazione inviata');
 }
 
 function renderAdminPanel(){
@@ -2130,7 +2286,7 @@ document.addEventListener('visibilitychange', ()=>{
       if(val){
         suppressSync=true;
         users=Array.isArray(val)?val.filter(Boolean):Object.values(val);
-        buildUserChips();renderTurni();renderAdminPanel();
+        buildUserChips();renderTurni();renderAdminPanel();renderComunicazioni();updateCommBadge();
         suppressSync=false;
       }
     }).catch(()=>{});
@@ -2236,6 +2392,24 @@ document.addEventListener('visibilitychange', ()=>{
     <div class="sheet-btns">
       <button class="btn-cancel" onclick="closeSheet('reset-pwd-sheet')">Annulla</button>
       <button class="btn-ok" onclick="saveResetPwd()">Reimposta</button>
+    </div>
+  </div>
+</div>
+
+<!-- Admin: invia comunicazione -->
+<div class="overlay" id="send-comm-sheet">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <h2>✉️ Invia comunicazione</h2>
+    <div class="field"><label>Destinatario</label>
+      <select id="sc-dest"><option value="__ALL__">📢 Tutti i dipendenti</option></select>
+    </div>
+    <div class="field"><label>Titolo</label><input type="text" id="sc-titolo" placeholder="Es. Modifica turni novembre"></div>
+    <div class="field"><label>Messaggio</label><textarea id="sc-testo" rows="5" placeholder="Scrivi il messaggio..." style="width:100%;padding:12px 14px;border:1.5px solid var(--border);border-radius:12px;font-size:15px;background:var(--surface2);color:var(--text);outline:none;resize:vertical;font-family:inherit"></textarea></div>
+    <div class="error-msg" id="sc-err"></div>
+    <div class="sheet-btns">
+      <button class="btn-cancel" onclick="closeSheet('send-comm-sheet')">Annulla</button>
+      <button class="btn-ok" onclick="saveSendComm()">Invia</button>
     </div>
   </div>
 </div>
