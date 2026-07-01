@@ -342,6 +342,13 @@ mark{background:#FFF3CD;border-radius:2px;padding:0 1px}
 .comm-card-body{font-size:13px;color:var(--text2);line-height:1.5;white-space:pre-wrap}
 .comm-card-from{font-size:11px;color:var(--text3);margin-top:8px}
 .comm-empty{padding:48px 24px;text-align:center;color:var(--text2)}
+.comm-tabs{display:flex;gap:8px;padding:0 16px 12px;position:relative}
+.comm-tab{flex:1;padding:10px;border-radius:12px;border:1.5px solid var(--border);background:var(--surface);color:var(--text2);font-size:13px;font-weight:700;cursor:pointer;position:relative}
+.comm-tab.active{background:var(--purple-lt);border-color:var(--purple);color:var(--purple)}
+.comm-tab-badge{position:absolute;top:-6px;right:-6px;background:#DC2626;color:white;font-size:10px;font-weight:800;min-width:16px;height:16px;border-radius:8px;display:flex;align-items:center;justify-content:center;padding:0 4px}
+.rich-status{font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px;text-transform:uppercase;letter-spacing:.04em}
+.rich-status.aperta{background:var(--amber-bg);color:var(--amber-fg)}
+.rich-status.chiusa{background:var(--green-bg);color:var(--green-fg)}
 
 /* ── PWD LOCKED ── */
 .ff-toggle{display:flex;align-items:center;gap:12px;padding:14px;border-radius:14px;border:2px solid var(--border);background:var(--surface2);cursor:pointer;transition:all .2s;position:relative}
@@ -474,10 +481,22 @@ mark{background:#FFF3CD;border-radius:2px;padding:0 1px}
         <div class="sec-sub" id="comm-sub"></div>
       </div>
     </div>
-    <div id="comm-admin-actions" style="display:none;padding:0 16px 12px">
-      <button class="btn-ghost" style="width:100%;padding:12px;font-size:14px" onclick="openSendComm()">✉️ Invia comunicazione</button>
+    <div class="comm-tabs">
+      <button class="comm-tab active" id="ctab-comm" onclick="switchCommTab('comm')">📢 Comunicazioni</button>
+      <button class="comm-tab" id="ctab-rich" onclick="switchCommTab('rich')">📨 Richieste<span id="rich-tab-badge" class="comm-tab-badge" style="display:none">0</span></button>
     </div>
-    <div id="comm-list" style="padding:0 16px"></div>
+    <div id="comm-tab-content">
+      <div id="comm-admin-actions" style="display:none;padding:0 16px 12px">
+        <button class="btn-ghost" style="width:100%;padding:12px;font-size:14px" onclick="openSendComm()">✉️ Invia comunicazione</button>
+      </div>
+      <div id="comm-list" style="padding:0 16px"></div>
+    </div>
+    <div id="rich-tab-content" style="display:none">
+      <div id="rich-user-actions" style="display:none;padding:0 16px 12px">
+        <button class="btn-ghost" style="width:100%;padding:12px;font-size:14px" onclick="openSendRichiesta()">📨 Invia richiesta all'admin</button>
+      </div>
+      <div id="rich-list" style="padding:0 16px"></div>
+    </div>
   </div>
 
   <!-- ══ PAGE: ADMIN ══ -->
@@ -863,7 +882,7 @@ function initFirebase(){
             if(currentMatricola && !users.find(u=>u.matricola===currentMatricola)){
               ensureUserRecordMinimal(currentMatricola, currentRole);
             }
-            buildUserChips();renderTurni();renderAdminPanel();renderComunicazioni();updateCommBadge();
+            buildUserChips();renderTurni();renderAdminPanel();renderComunicazioni();renderRichieste();updateCommBadge();
           }).catch(()=>{});
         }
       } else {
@@ -900,7 +919,7 @@ function listenRemoteData(){
     if(val){
       suppressSync=true;
       users=Array.isArray(val)?val.filter(Boolean):Object.values(val);
-      buildUserChips();renderTurni();renderAdminPanel();renderComunicazioni();updateCommBadge();
+      buildUserChips();renderTurni();renderAdminPanel();renderComunicazioni();renderRichieste();updateCommBadge();
       document.getElementById('turni-empty').style.display = data.length||users.length ? 'none':'';
       document.getElementById('turni-content').style.display = data.length||users.length ? 'block':'none';
       suppressSync=false;
@@ -911,6 +930,14 @@ function listenRemoteData(){
     suppressSync=true;
     comunicazioni = val ? (Array.isArray(val)?val.filter(Boolean):Object.values(val)) : [];
     renderComunicazioni();
+    updateCommBadge();
+    suppressSync=false;
+  });
+  fbDb.ref('richieste').on('value', snap=>{
+    const val=snap.val();
+    suppressSync=true;
+    richieste = val ? (Array.isArray(val)?val.filter(Boolean):Object.values(val)) : [];
+    renderRichieste();
     updateCommBadge();
     suppressSync=false;
   });
@@ -925,6 +952,11 @@ function pushToFirebase(){
 function pushComunicazioni(){
   if(!fbReady)return; // any logged-in user can write here (to mark as read)
   fbDb.ref('comunicazioni').set(comunicazioni).catch(e=>console.warn('Sync comunicazioni:',e.message));
+}
+
+function pushRichieste(){
+  if(!fbReady)return; // any logged-in user can write here (utenti creano, admin gestisce)
+  fbDb.ref('richieste').set(richieste).catch(e=>console.warn('Sync richieste:',e.message));
 }
 
 /* ══ AUTENTICAZIONE (matricola + password) ══ */
@@ -969,6 +1001,8 @@ function syncIsAdminFlag(){ isAdmin = (currentRole==='admin'); }
 let isAdmin=false;
 let data=[], users=[];
 let comunicazioni=[]; // [{id, scope:'__ALL__'|nomeChiave, titolo, testo, mittente, data, lettoDa:[matricole]}]
+let richieste=[]; // [{id, matricola, mittente, titolo, testo, data, stato:'aperta'|'chiusa'}]
+let commTab='comm'; // 'comm' | 'rich'
 let selUser='__ALL__';
 let selMonth=new Date().getMonth();
 let selYear=new Date().getFullYear();
@@ -988,7 +1022,16 @@ function switchPage(page, btn){
   // so switching back to a tab shows up-to-date info without needing a manual refresh
   if(page==='admin') renderAdminPanel();
   else if(page==='turni') { buildTurniDayStrip(); renderTurni(); }
-  else if(page==='comunicazioni') { renderComunicazioni(); }
+  else if(page==='comunicazioni') { renderComunicazioni(); renderRichieste(); }
+}
+
+function switchCommTab(tab){
+  commTab=tab;
+  document.getElementById('ctab-comm').classList.toggle('active', tab==='comm');
+  document.getElementById('ctab-rich').classList.toggle('active', tab==='rich');
+  document.getElementById('comm-tab-content').style.display = tab==='comm' ? 'block':'none';
+  document.getElementById('rich-tab-content').style.display = tab==='rich' ? 'block':'none';
+  if(tab==='rich') renderRichieste();
 }
 
 /* ══ UPLOAD ══ */
@@ -1641,7 +1684,7 @@ function doAppLogin(){
     // (covers accounts created manually in Firebase Console, e.g. the first admin)
     ensureUserRecord(matricola, password, ruolo);
 
-    buildUserChips();renderTurni();renderAdminPanel();renderComunicazioni();updateCommBadge();
+    buildUserChips();renderTurni();renderAdminPanel();renderComunicazioni();renderRichieste();updateCommBadge();
     showToast('✅ Accesso effettuato'+(ruolo==='admin'?' come admin':''));
   }).catch(err=>{
     console.warn('Login error:', err.code, err.message);
@@ -1827,13 +1870,35 @@ function isCommUnread(c){
   return !(c.lettoDa||[]).includes(currentMatricola);
 }
 
+function getMyRichieste(){
+  if(isAdminRole()) return richieste;
+  return richieste.filter(r=>r.matricola===currentMatricola);
+}
+
 function updateCommBadge(){
   const mine=getMyComunicazioni();
-  const unread=mine.filter(isCommUnread).length;
+  const unreadComm=mine.filter(isCommUnread).length;
+
+  let unreadRich=0;
+  if(isAdminRole()){
+    unreadRich = richieste.filter(r=>r.stato!=='chiusa').length;
+  }
+
+  const richBadge=document.getElementById('rich-tab-badge');
+  if(richBadge){
+    if(unreadRich>0){
+      richBadge.textContent=unreadRich>99?'99+':unreadRich;
+      richBadge.style.display='flex';
+    } else {
+      richBadge.style.display='none';
+    }
+  }
+
+  const total=unreadComm+unreadRich;
   const badge=document.getElementById('comm-badge');
   if(!badge)return;
-  if(unread>0){
-    badge.textContent=unread>99?'99+':unread;
+  if(total>0){
+    badge.textContent=total>99?'99+':total;
     badge.style.display='flex';
   } else {
     badge.style.display='none';
@@ -2000,6 +2065,110 @@ function saveSendComm(){
   updateCommBadge();
   pushComunicazioni();
   showToast('✅ Comunicazione inviata');
+}
+
+/* ══ RICHIESTE (utente → admin) ══ */
+function renderRichieste(){
+  const listEl=document.getElementById('rich-list');
+  if(!listEl) return; // page not yet in DOM
+  document.getElementById('rich-user-actions').style.display = isAdminRole() ? 'none' : 'block';
+
+  const mine=[...getMyRichieste()].sort((a,b)=>(b.data||0)-(a.data||0));
+  if(!mine.length){
+    listEl.innerHTML=`<div class="comm-empty"><div style="font-size:40px;margin-bottom:10px">📭</div>${isAdminRole()?'Nessuna richiesta ricevuta':'Nessuna richiesta inviata'}</div>`;
+    return;
+  }
+
+  if(isAdminRole()){
+    listEl.innerHTML=mine.map(r=>{
+      const dateStr = r.data ? new Date(r.data).toLocaleDateString('it-IT',{day:'numeric',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'}) : '';
+      const stato = r.stato==='chiusa' ? 'chiusa' : 'aperta';
+      return `<div class="comm-card">
+        <div class="comm-card-top">
+          <span class="rich-status ${stato}">${stato==='chiusa'?'✔ Chiusa':'● Aperta'}</span>
+          <span class="comm-card-date">${dateStr}</span>
+        </div>
+        <div class="comm-card-title">${(r.titolo||'').replace(/</g,'&lt;')}</div>
+        <div class="comm-card-body">${(r.testo||'').replace(/</g,'&lt;')}</div>
+        <div class="comm-card-from">Da: ${(r.mittente||r.matricola||'').replace(/</g,'&lt;')}</div>
+        <div style="display:flex;gap:8px;margin-top:10px">
+          <button class="card-action-btn btn-edit" onclick="event.stopPropagation();toggleRichiestaStato('${r.id}')">${stato==='chiusa'?'↩️ Riapri':'✔️ Segna chiusa'}</button>
+          <button class="card-action-btn btn-del" onclick="event.stopPropagation();confirmDeleteRichiesta('${r.id}')">🗑 Elimina</button>
+        </div>
+      </div>`;
+    }).join('');
+    return;
+  }
+
+  listEl.innerHTML=mine.map(r=>{
+    const dateStr = r.data ? new Date(r.data).toLocaleDateString('it-IT',{day:'numeric',month:'short',year:'numeric'}) : '';
+    const stato = r.stato==='chiusa' ? 'chiusa' : 'aperta';
+    return `<div class="comm-card">
+      <div class="comm-card-top">
+        <span class="rich-status ${stato}">${stato==='chiusa'?'✔ Chiusa':'● Aperta'}</span>
+        <span class="comm-card-date">${dateStr}</span>
+      </div>
+      <div class="comm-card-title">${(r.titolo||'').replace(/</g,'&lt;')}</div>
+      <div class="comm-card-body">${(r.testo||'').replace(/</g,'&lt;')}</div>
+    </div>`;
+  }).join('');
+}
+
+function toggleRichiestaStato(id){
+  const r=richieste.find(r=>r.id===id);
+  if(!r)return;
+  r.stato = r.stato==='chiusa' ? 'aperta' : 'chiusa';
+  renderRichieste();
+  updateCommBadge();
+  pushRichieste();
+  showToast(r.stato==='chiusa' ? '✅ Richiesta segnata come chiusa' : 'Richiesta riaperta');
+}
+
+function confirmDeleteRichiesta(id){
+  const r=richieste.find(r=>r.id===id);
+  if(!r)return;
+  showConfirm('Elimina richiesta',
+    `Eliminare la richiesta <strong>${(r.titolo||'').replace(/</g,'&lt;')}</strong>?`,
+    ()=>{
+      richieste=richieste.filter(x=>x.id!==id);
+      renderRichieste();updateCommBadge();pushRichieste();
+      showToast('Richiesta eliminata');
+    });
+}
+
+function openSendRichiesta(){
+  document.getElementById('sr-titolo').value='';
+  document.getElementById('sr-testo').value='';
+  document.getElementById('sr-err').textContent='';
+  openSheet('send-rich-sheet');
+}
+
+function saveSendRichiesta(){
+  const titolo=document.getElementById('sr-titolo').value.trim();
+  const testo=document.getElementById('sr-testo').value.trim();
+  const errEl=document.getElementById('sr-err');
+  errEl.textContent='';
+
+  if(!titolo){errEl.textContent='Inserisci un titolo.';return;}
+  if(!testo){errEl.textContent='Descrivi la richiesta.';return;}
+  if(!fbReady){errEl.textContent='Connessione non disponibile.';return;}
+
+  const mittente=((users.find(u=>u.matricola===currentMatricola)?.cognome)||currentMatricola||'Utente');
+
+  richieste.push({
+    id: 'r'+Date.now()+Math.random().toString(36).slice(2,7),
+    matricola: currentMatricola,
+    mittente,
+    titolo, testo,
+    data: Date.now(),
+    stato: 'aperta'
+  });
+
+  closeSheet('send-rich-sheet');
+  renderRichieste();
+  updateCommBadge();
+  pushRichieste();
+  showToast('✅ Richiesta inviata all\'admin');
 }
 
 function renderAdminPanel(){
@@ -2388,7 +2557,7 @@ document.addEventListener('visibilitychange', ()=>{
       if(val){
         suppressSync=true;
         users=Array.isArray(val)?val.filter(Boolean):Object.values(val);
-        buildUserChips();renderTurni();renderAdminPanel();renderComunicazioni();updateCommBadge();
+        buildUserChips();renderTurni();renderAdminPanel();renderComunicazioni();renderRichieste();updateCommBadge();
         suppressSync=false;
       }
     }).catch(()=>{});
@@ -2512,6 +2681,21 @@ document.addEventListener('visibilitychange', ()=>{
     <div class="sheet-btns">
       <button class="btn-cancel" onclick="closeSheet('send-comm-sheet')">Annulla</button>
       <button class="btn-ok" onclick="saveSendComm()">Invia</button>
+    </div>
+  </div>
+</div>
+
+<!-- Utente: invia richiesta all'admin -->
+<div class="overlay" id="send-rich-sheet">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <h2>📨 Invia richiesta</h2>
+    <div class="field"><label>Titolo richiesta</label><input type="text" id="sr-titolo" placeholder="Es. Cambio turno 12 luglio"></div>
+    <div class="field"><label>Testo</label><textarea id="sr-testo" rows="5" placeholder="Descrivi la richiesta (cambio turno, comunicazione, ecc.)..." style="width:100%;padding:12px 14px;border:1.5px solid var(--border);border-radius:12px;font-size:15px;background:var(--surface2);color:var(--text);outline:none;resize:vertical;font-family:inherit"></textarea></div>
+    <div class="error-msg" id="sr-err"></div>
+    <div class="sheet-btns">
+      <button class="btn-cancel" onclick="closeSheet('send-rich-sheet')">Annulla</button>
+      <button class="btn-ok" onclick="saveSendRichiesta()">Invia</button>
     </div>
   </div>
 </div>
