@@ -474,16 +474,15 @@ body{font-family:'Segoe UI',-apple-system,BlinkMacSystemFont,Roboto,sans-serif}
 /* ── Comunicazioni & Richieste: bacheca a più colonne, non elenco a scorrimento ── */
 #comm-list,#rich-list{
   padding-left:36px !important;padding-right:36px !important;
-  display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));
+  display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));
   gap:14px;align-items:start;
 }
 .comm-card{margin-bottom:0}
 #comm-admin-actions,#rich-user-actions{padding-left:36px !important;padding-right:36px !important}
 
 /* ── Comunicazioni: intestazione e tab centrate ── */
-#page-comunicazioni .sec-header{justify-content:center;text-align:center}
-#page-comunicazioni .sec-header > div{display:flex;flex-direction:column;align-items:center}
-#page-comunicazioni .comm-tabs{margin:0 auto}
+#page-comunicazioni .sec-header,#page-richieste .sec-header{justify-content:center;text-align:center}
+#page-comunicazioni .sec-header > div,#page-richieste .sec-header > div{display:flex;flex-direction:column;align-items:center}
 #cards-list > div[style*="padding:0 16px"]{padding:0 36px 36px !important}
 .dt-table-wrap{overflow-x:auto}
 .dt-table{width:100%}
@@ -528,6 +527,7 @@ body{font-family:'Segoe UI',-apple-system,BlinkMacSystemFont,Roboto,sans-serif}
 .nav-label{font-size:14.5px;font-weight:600}
 .nav-item.active .nav-label{color:#fff}
 #comm-badge{position:static !important;top:auto !important;right:auto !important;margin-left:auto}
+#rich-tab-badge{position:static !important;top:auto !important;right:auto !important;margin-left:auto}
 
 /* ── MODALI: dialog centrato, look da desktop app ── */
 .overlay{align-items:center;background:rgba(15,17,35,.55)}
@@ -675,22 +675,24 @@ body{font-family:'Segoe UI',-apple-system,BlinkMacSystemFont,Roboto,sans-serif}
         <div class="sec-sub" id="comm-sub"></div>
       </div>
     </div>
-    <div class="comm-tabs">
-      <button class="comm-tab active" id="ctab-comm" onclick="switchCommTab('comm')">📢 Comunicazioni</button>
-      <button class="comm-tab" id="ctab-rich" onclick="switchCommTab('rich')">📨 Richieste<span id="rich-tab-badge" class="comm-tab-badge" style="display:none">0</span></button>
+    <div id="comm-admin-actions" style="display:none;padding:0 16px 12px">
+      <button class="btn-ghost" style="width:100%;padding:12px;font-size:14px" onclick="openSendComm()">✉️ Invia comunicazione</button>
     </div>
-    <div id="comm-tab-content">
-      <div id="comm-admin-actions" style="display:none;padding:0 16px 12px">
-        <button class="btn-ghost" style="width:100%;padding:12px;font-size:14px" onclick="openSendComm()">✉️ Invia comunicazione</button>
+    <div id="comm-list" style="padding:0 16px"></div>
+  </div>
+
+  <!-- ══ PAGE: RICHIESTE ══ -->
+  <div class="page" id="page-richieste">
+    <div class="sec-header">
+      <div>
+        <div class="sec-title">📨 Richieste</div>
+        <div class="sec-sub" id="rich-sub"></div>
       </div>
-      <div id="comm-list" style="padding:0 16px"></div>
     </div>
-    <div id="rich-tab-content" style="display:none">
-      <div id="rich-user-actions" style="display:none;padding:0 16px 12px">
-        <button class="btn-ghost" style="width:100%;padding:12px;font-size:14px" onclick="openSendRichiesta()">📨 Invia richiesta all'admin</button>
-      </div>
-      <div id="rich-list" style="padding:0 16px"></div>
+    <div id="rich-user-actions" style="display:none;padding:0 16px 12px">
+      <button class="btn-ghost" style="width:100%;padding:12px;font-size:14px" onclick="openSendRichiesta()">📨 Invia richiesta all'admin</button>
     </div>
+    <div id="rich-list" style="padding:0 16px"></div>
   </div>
 
   <!-- ══ PAGE: ADMIN ══ -->
@@ -745,12 +747,13 @@ body{font-family:'Segoe UI',-apple-system,BlinkMacSystemFont,Roboto,sans-serif}
   <button class="nav-item active" id="nav-turni" onclick="switchPage('turni',this)">
     <span class="nav-icon">📅</span><span class="nav-label">Turni</span>
   </button>
-  <button class="nav-item" id="nav-comunicazioni" onclick="switchPage('comunicazioni',this);switchCommTab('comm')" style="position:relative">
+  <button class="nav-item" id="nav-comunicazioni" onclick="switchPage('comunicazioni',this)" style="position:relative">
     <span class="nav-icon">📢</span><span class="nav-label">Comunicazioni</span>
     <span id="comm-badge" style="display:none;position:absolute;top:2px;right:18%;background:#DC2626;color:white;font-size:10px;font-weight:800;min-width:16px;height:16px;border-radius:8px;display:flex;align-items:center;justify-content:center;padding:0 4px">0</span>
   </button>
-  <button class="nav-item" id="nav-richieste" onclick="switchPage('comunicazioni',this);switchCommTab('rich')">
+  <button class="nav-item" id="nav-richieste" onclick="switchPage('richieste',this)" style="position:relative">
     <span class="nav-icon">📨</span><span class="nav-label">Richieste</span>
+    <span id="rich-tab-badge" style="display:none;position:absolute;top:2px;right:18%;background:#DC2626;color:white;font-size:10px;font-weight:800;min-width:16px;height:16px;border-radius:8px;display:flex;align-items:center;justify-content:center;padding:0 4px">0</span>
   </button>
   <button class="nav-item" id="nav-admin" onclick="switchPage('admin',this)">
     <span class="nav-icon">⚙️</span><span class="nav-label">Amministrazione</span>
@@ -1241,21 +1244,13 @@ function switchPage(page, btn){
   document.getElementById('page-'+page).classList.add('active');
   btn.classList.add('active');
   document.getElementById('scroll-area').scrollTop=0;
-  document.getElementById('btn-upload').style.display=(page==='admin'||page==='comunicazioni')?'none':'flex';
+  document.getElementById('btn-upload').style.display=(page==='admin'||page==='comunicazioni'||page==='richieste')?'none':'flex';
   // Always re-render the page content with the latest in-memory data,
   // so switching back to a tab shows up-to-date info without needing a manual refresh
   if(page==='admin') renderAdminPanel();
   else if(page==='turni') { buildTurniDayStrip(); renderTurni(); }
-  else if(page==='comunicazioni') { renderComunicazioni(); renderRichieste(); }
-}
-
-function switchCommTab(tab){
-  commTab=tab;
-  document.getElementById('ctab-comm').classList.toggle('active', tab==='comm');
-  document.getElementById('ctab-rich').classList.toggle('active', tab==='rich');
-  document.getElementById('comm-tab-content').style.display = tab==='comm' ? 'block':'none';
-  document.getElementById('rich-tab-content').style.display = tab==='rich' ? 'block':'none';
-  if(tab==='rich') renderRichieste();
+  else if(page==='comunicazioni') renderComunicazioni();
+  else if(page==='richieste') renderRichieste();
 }
 
 /* ══ UPLOAD ══ */
@@ -2118,11 +2113,10 @@ function updateCommBadge(){
     }
   }
 
-  const total=unreadComm+unreadRich;
   const badge=document.getElementById('comm-badge');
   if(!badge)return;
-  if(total>0){
-    badge.textContent=total>99?'99+':total;
+  if(unreadComm>0){
+    badge.textContent=unreadComm>99?'99+':unreadComm;
     badge.style.display='flex';
   } else {
     badge.style.display='none';
@@ -2298,6 +2292,8 @@ function renderRichieste(){
   document.getElementById('rich-user-actions').style.display = isAdminRole() ? 'none' : 'block';
 
   const mine=[...getMyRichieste()].sort((a,b)=>(b.data||0)-(a.data||0));
+  const subEl=document.getElementById('rich-sub');
+  if(subEl) subEl.textContent = mine.length ? `${mine.length} richiest${mine.length===1?'a':'e'}` : '';
   if(!mine.length){
     listEl.innerHTML=`<div class="comm-empty"><div style="font-size:40px;margin-bottom:10px">📭</div>${isAdminRole()?'Nessuna richiesta ricevuta':'Nessuna richiesta inviata'}</div>`;
     return;
