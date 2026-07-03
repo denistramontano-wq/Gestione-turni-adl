@@ -844,6 +844,26 @@ mark{background:#FFF3CD;border-radius:2px;padding:0 1px}
   </div>
 </div>
 
+<!-- Admin: modifica dipendente -->
+<div class="overlay" id="edit-user-sheet">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <h2>✏️ Modifica dipendente</h2>
+    <div class="field"><label>Nome</label><input type="text" id="eu-name" placeholder="Es. Mario"></div>
+    <div class="field"><label>Cognome</label><input type="text" id="eu-cognome" placeholder="Es. Rossi"></div>
+    <div class="field"><label>Matricola</label><input type="text" id="eu-matr" disabled style="opacity:.6;cursor:not-allowed"></div>
+    <div style="font-size:11px;color:var(--text3);margin:-10px 0 14px">La matricola è l'username di accesso e non è modificabile qui: per cambiarla, elimina e ricrea l'account.</div>
+    <div class="field"><label>Telefono</label><input type="tel" id="eu-tel" placeholder="Es. 333 1234567"></div>
+    <div class="field"><label>Qualifica</label><input type="text" id="eu-posto" placeholder="Es. Cassa 1"></div>
+    <div style="font-size:11px;color:var(--text3);margin:-10px 0 14px">Per cambiare il ruolo (admin/utente) usa il pulsante "Admin / Utente" nell'elenco dipendenti.</div>
+    <div class="error-msg" id="eu-err"></div>
+    <div class="sheet-btns">
+      <button class="btn-cancel" onclick="closeSheet('edit-user-sheet')">Annulla</button>
+      <button class="btn-ok" onclick="saveEditUser()">Salva modifiche</button>
+    </div>
+  </div>
+</div>
+
 <!-- Confirm delete -->
 <div class="overlay" id="confirm-sheet">
   <div class="sheet">
@@ -2274,6 +2294,7 @@ function renderAdminPanel(){
         ${isAdm?'👑 Admin':'Utente'}
       </button>
       <button class="user-del-btn" style="background:var(--purple-lt);color:var(--purple);margin-right:4px" onclick="openUserDetail('${safe}')">👁</button>
+      <button class="user-del-btn" style="background:#E9F5EC;color:#1E6B3A;margin-right:4px" onclick="openEditUser('${safe}')">✏️</button>
       <button class="user-del-btn" onclick="confirmDeleteUser('${safe}')">✕</button>
     </div>`;
   }).join('');
@@ -2397,6 +2418,60 @@ function saveNewUser(){
     else if(err.code==='auth/weak-password'){errEl.textContent='Password troppo debole (min. 6 caratteri: usa nome più lungo).';}
     else{errEl.textContent='Errore: '+err.message;}
   });
+}
+
+function openEditUser(nome){
+  const u=users.find(u=>u.nome===nome);
+  if(!u){showToast('⚠ Dipendente non trovato');return;}
+  editUserOriginalNome=u.nome;
+  document.getElementById('eu-name').value=u.nomePropr||'';
+  document.getElementById('eu-cognome').value=u.cognome||u.nome||'';
+  document.getElementById('eu-matr').value=u.matricola||'—';
+  document.getElementById('eu-tel').value=u.telefono||'';
+  document.getElementById('eu-posto').value=u.qualifica||'';
+  document.getElementById('eu-err').textContent='';
+  openSheet('edit-user-sheet');
+  setTimeout(()=>document.getElementById('eu-cognome').focus(),100);
+}
+
+let editUserOriginalNome=null;
+
+function saveEditUser(){
+  const u=users.find(u=>u.nome===editUserOriginalNome);
+  const errEl=document.getElementById('eu-err');
+  errEl.textContent='';
+  if(!u){errEl.textContent='Dipendente non trovato.';return;}
+
+  const nome=document.getElementById('eu-name').value.trim();
+  const cognome=document.getElementById('eu-cognome').value.trim();
+  const tel=document.getElementById('eu-tel').value.trim();
+  const posto=document.getElementById('eu-posto').value.trim();
+
+  if(!cognome&&!nome){errEl.textContent='Inserisci almeno nome o cognome.';return;}
+
+  const nuovaChiave=cognome||nome;
+  const vecchiaChiave=u.nome;
+
+  if(nuovaChiave!==vecchiaChiave && users.find(x=>x!==u&&x.nome===nuovaChiave)){
+    errEl.textContent='Esiste già un altro dipendente con questo cognome.';
+    return;
+  }
+
+  // Se il cognome (chiave primaria dei turni) cambia, aggiorna tutti i turni collegati
+  if(nuovaChiave!==vecchiaChiave){
+    data.forEach(d=>{ if(d.nome===vecchiaChiave) d.nome=nuovaChiave; });
+    if(selUser===vecchiaChiave) selUser=nuovaChiave;
+  }
+
+  u.nome=nuovaChiave;
+  u.cognome=cognome||u.cognome;
+  u.nomePropr=nome;
+  u.telefono=tel;
+  u.qualifica=posto;
+
+  closeSheet('edit-user-sheet');
+  buildUserChips();buildTurniDayStrip();renderTurni();renderAdminPanel();pushToFirebase();
+  showToast('✅ Dati di '+nuovaChiave+' aggiornati');
 }
 
 function getOwnNomeChiave(){
