@@ -414,8 +414,7 @@ body{font-family:'Segoe UI',-apple-system,BlinkMacSystemFont,Roboto,sans-serif}
   grid-template-rows:72px 1fr;
   grid-template-areas:"sidebar topbar" "sidebar content";
   height:100vh;
-  max-width:1600px;
-  margin:0 auto;
+  width:100%;
   background:var(--dsk-bg);
 }
 
@@ -450,15 +449,34 @@ body{font-family:'Segoe UI',-apple-system,BlinkMacSystemFont,Roboto,sans-serif}
 
 /* ── CONTENT AREA ── */
 .scroll-area{grid-area:content;padding-bottom:40px}
-.scroll-area > .page{max-width:1080px;margin:0 auto;padding-top:8px}
-.comm-tabs{max-width:1080px;margin:0 auto;padding:4px 32px 16px}
-.sec-header{padding:20px 32px 12px}
-.sec-title{font-size:23px;font-weight:800;letter-spacing:-.01em}
-.stats-strip,.month-scroll,.year-row,.cards-list,#comm-list,#rich-list{padding-left:32px;padding-right:32px}
-#comm-list,#rich-list{max-width:1080px;margin:0 auto}
-.upload-card{margin:12px 32px}
-.file-chip{margin:8px 32px}
-.admin-card,.user-list-card{margin-left:32px;margin-right:32px;max-width:1016px}
+.scroll-area > .page{padding-top:8px}
+.comm-tabs{max-width:420px;padding:4px 36px 16px}
+.sec-header{padding:22px 36px 14px}
+.sec-title{font-size:24px;font-weight:800;letter-spacing:-.01em}
+.stats-strip,.month-scroll,.year-row,.cards-list{padding-left:36px;padding-right:36px}
+.upload-card{margin:12px 36px}
+.file-chip{margin:8px 36px}
+.admin-card,.user-list-card{margin-left:36px;margin-right:36px}
+
+/* ── Vista "Tutti": più respiro per la griglia linee ── */
+.grid-layout{padding:0 36px 14px;gap:20px}
+.grid-altro{width:220px}
+.line-grid{gap:16px}
+.t-box{padding:11px 13px;border-radius:9px}
+.t-box-turno{font-size:12.5px}
+.t-box-nome{font-size:13.5px}
+.line-section-hdr-compact{padding:12px 16px}
+
+/* ── Comunicazioni & Richieste: bacheca a più colonne, non elenco a scorrimento ── */
+#comm-list,#rich-list{
+  padding-left:36px;padding-right:36px;
+  display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));
+  gap:14px;align-items:start;
+}
+.comm-card{margin-bottom:0}
+#cards-list > div[style*="padding:0 16px"]{padding:0 36px 36px !important}
+.dt-table-wrap{overflow-x:auto}
+.dt-table{width:100%}
 
 /* ── SIDEBAR (era bottom-nav) ── */
 .bottom-nav{
