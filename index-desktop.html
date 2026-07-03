@@ -7,10 +7,10 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#3C3489">
-<meta name="description" content="Gestione turni di lavoro e orari treni">
+<meta name="description" content="Gestione turni di lavoro ADL">
 <link rel="manifest" href="./manifest.json">
 <link rel="apple-touch-icon" href="./icon.svg">
-<title>Turni & Treni — Desktop</title>
+<title>Turni ADL — Desktop</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
@@ -473,11 +473,17 @@ body{font-family:'Segoe UI',-apple-system,BlinkMacSystemFont,Roboto,sans-serif}
 
 /* ── Comunicazioni & Richieste: bacheca a più colonne, non elenco a scorrimento ── */
 #comm-list,#rich-list{
-  padding-left:36px;padding-right:36px;
+  padding-left:36px !important;padding-right:36px !important;
   display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));
   gap:14px;align-items:start;
 }
 .comm-card{margin-bottom:0}
+#comm-admin-actions,#rich-user-actions{padding-left:36px !important;padding-right:36px !important}
+
+/* ── Comunicazioni: intestazione e tab centrate ── */
+#page-comunicazioni .sec-header{justify-content:center;text-align:center}
+#page-comunicazioni .sec-header > div{display:flex;flex-direction:column;align-items:center}
+#page-comunicazioni .comm-tabs{margin:0 auto}
 #cards-list > div[style*="padding:0 16px"]{padding:0 36px 36px !important}
 .dt-table-wrap{overflow-x:auto}
 .dt-table{width:100%}
@@ -495,7 +501,7 @@ body{font-family:'Segoe UI',-apple-system,BlinkMacSystemFont,Roboto,sans-serif}
   position:relative;
 }
 .bottom-nav::before{
-  content:'Turni & Treni';
+  content:'Turni ADL';
   display:block;color:#fff;font-size:17px;font-weight:800;letter-spacing:-.02em;
   padding:26px 24px 22px;border-bottom:1px solid rgba(255,255,255,.08);margin-bottom:14px;
 }
@@ -574,7 +580,7 @@ body{font-family:'Segoe UI',-apple-system,BlinkMacSystemFont,Roboto,sans-serif}
   <div style="width:100%;max-width:360px">
     <div style="text-align:center;margin-bottom:28px">
       <div style="font-size:48px;margin-bottom:10px">🚆</div>
-      <div style="font-size:22px;font-weight:800;color:var(--text)">Turni<span style="color:var(--purple)">&amp;Treni</span></div>
+      <div style="font-size:22px;font-weight:800;color:var(--text)">Turni <span style="color:var(--purple)">ADL</span></div>
       <div style="font-size:13px;color:var(--text2);margin-top:4px">Accedi con la tua matricola</div>
     </div>
     <div class="field">
@@ -598,7 +604,7 @@ body{font-family:'Segoe UI',-apple-system,BlinkMacSystemFont,Roboto,sans-serif}
 <div class="topbar">
   <div style="display:flex;align-items:center;gap:16px">
     <button class="icon-btn" id="btn-sidebar-toggle" onclick="toggleSidebar()" title="Mostra/nascondi menu">☰</button>
-    <div class="topbar-logo">Turni<span>&amp;Treni</span></div>
+    <div class="topbar-logo">Turni <span>ADL</span></div>
   </div>
   <div class="topbar-actions">
     <span id="sync-badge" style="display:none;font-size:11px;font-weight:700;color:#22C55E;background:rgba(34,197,94,.15);padding:3px 8px;border-radius:10px;align-items:center;gap:4px">☁️ Online</span>
@@ -619,7 +625,7 @@ body{font-family:'Segoe UI',-apple-system,BlinkMacSystemFont,Roboto,sans-serif}
     <div id="turni-empty">
       <div style="padding:32px 24px 8px;text-align:center">
         <div style="font-size:56px;margin-bottom:12px">📅</div>
-        <div style="font-size:20px;font-weight:800;color:var(--text);margin-bottom:6px">Benvenuto in Turni&Treni</div>
+        <div style="font-size:20px;font-weight:800;color:var(--text);margin-bottom:6px">Benvenuto in Turni ADL</div>
         <div style="font-size:14px;color:var(--text2);line-height:1.5;max-width:300px;margin:0 auto">Nessun turno caricato. Importa il file Excel dei turni per iniziare a visualizzare le sezioni per linea.</div>
       </div>
       <div class="upload-card" onclick="document.getElementById('file-input-turni').click()">
