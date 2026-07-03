@@ -736,6 +736,9 @@ body{font-family:'Segoe UI',-apple-system,BlinkMacSystemFont,Roboto,sans-serif}
         </div>
       </div>
       <div class="admin-section-lbl">Dipendenti (<span id="user-count">0</span>)</div>
+      <div style="margin:0 16px 10px">
+        <input type="text" id="admin-user-search" placeholder="🔎 Cerca dipendente per nome, cognome, matricola o qualifica..." oninput="renderAdminPanel()" style="width:100%;padding:11px 14px;border:1.5px solid var(--border);border-radius:12px;font-size:14px;background:var(--surface2);color:var(--text);outline:none">
+      </div>
       <div class="user-list-card" id="admin-user-list"></div>
     </div>
   </div>
@@ -2416,7 +2419,19 @@ function renderAdminPanel(){
   document.getElementById('user-count').textContent=users.length;
   const ul=document.getElementById('admin-user-list');
   if(!users.length){ul.innerHTML='<div style="padding:16px;color:var(--text2);font-size:13px;text-align:center">Nessun dipendente</div>';return;}
-  ul.innerHTML=users.map((u,i)=>{
+
+  const searchEl=document.getElementById('admin-user-search');
+  const q=(searchEl?.value||'').trim().toLowerCase();
+  let list=[...users].sort((a,b)=>(a.cognome||a.nome||'').localeCompare(b.cognome||b.nome||'','it',{sensitivity:'base'}));
+  if(q){
+    list=list.filter(u=>{
+      const hay=[u.cognome,u.nome,u.nomePropr,u.matricola,u.qualifica].filter(Boolean).join(' ').toLowerCase();
+      return hay.includes(q);
+    });
+  }
+  if(!list.length){ul.innerHTML='<div style="padding:16px;color:var(--text2);font-size:13px;text-align:center">Nessun dipendente trovato</div>';return;}
+
+  ul.innerHTML=list.map((u,i)=>{
     const init=((u.cognome||u.nome)+' '+(u.nomePropr||'')).trim().split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
     const col=COLORS[i%COLORS.length];
     const safe=(u.nome||'').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
