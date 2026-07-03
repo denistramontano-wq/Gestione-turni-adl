@@ -416,7 +416,11 @@ body{font-family:'Segoe UI',-apple-system,BlinkMacSystemFont,Roboto,sans-serif}
   height:100vh;
   width:100%;
   background:var(--dsk-bg);
+  transition:grid-template-columns .18s ease;
 }
+#app-shell.sidebar-collapsed{grid-template-columns:0 1fr}
+#app-shell.sidebar-collapsed .bottom-nav{overflow:hidden;padding:0;border:none}
+#btn-sidebar-toggle{flex-shrink:0}
 
 /* ── HEADER ── */
 .topbar{
@@ -592,10 +596,14 @@ body{font-family:'Segoe UI',-apple-system,BlinkMacSystemFont,Roboto,sans-serif}
 
 <!-- TOPBAR -->
 <div class="topbar">
-  <div class="topbar-logo">Turni<span>&amp;Treni</span></div>
+  <div style="display:flex;align-items:center;gap:16px">
+    <button class="icon-btn" id="btn-sidebar-toggle" onclick="toggleSidebar()" title="Mostra/nascondi menu">☰</button>
+    <div class="topbar-logo">Turni<span>&amp;Treni</span></div>
+  </div>
   <div class="topbar-actions">
     <span id="sync-badge" style="display:none;font-size:11px;font-weight:700;color:#22C55E;background:rgba(34,197,94,.15);padding:3px 8px;border-radius:10px;align-items:center;gap:4px">☁️ Online</span>
     <span class="badge-admin" id="mode-badge" style="display:none">Admin</span>
+    <button class="icon-btn" id="btn-fullscreen" onclick="toggleFullscreen()" title="Schermo intero">⛶</button>
     <button class="icon-btn" id="btn-upload" onclick="handleUploadBtn()" title="Carica Excel">📂</button>
     <button class="icon-btn" id="btn-change-pwd" onclick="openChangePwd()" title="Cambia password" style="display:none">🔑</button>
     <button class="icon-btn" id="btn-logout-app" onclick="doAppLogout()" title="Esci" style="display:none">🚪</button>
@@ -1180,6 +1188,33 @@ function doLogout(){
 
 function isAdminRole(){ return currentRole==='admin'; }
 function syncIsAdminFlag(){ isAdmin = (currentRole==='admin'); }
+
+function toggleSidebar(){
+  const shell=document.getElementById('app-shell');
+  shell.classList.toggle('sidebar-collapsed');
+  try{ localStorage.setItem('tt_sidebar_collapsed', shell.classList.contains('sidebar-collapsed')?'1':'0'); }catch(e){}
+}
+(function(){
+  try{
+    if(localStorage.getItem('tt_sidebar_collapsed')==='1'){
+      document.getElementById('app-shell')?.classList.add('sidebar-collapsed');
+    }
+  }catch(e){}
+})();
+
+function toggleFullscreen(){
+  if(!document.fullscreenElement){
+    document.documentElement.requestFullscreen?.().catch(()=>{});
+  } else {
+    document.exitFullscreen?.().catch(()=>{});
+  }
+}
+document.addEventListener('fullscreenchange', ()=>{
+  const btn=document.getElementById('btn-fullscreen');
+  if(!btn)return;
+  btn.textContent = document.fullscreenElement ? '⤢' : '⛶';
+  btn.title = document.fullscreenElement ? 'Esci da schermo intero' : 'Schermo intero';
+});
 
 let isAdmin=false;
 let data=[], users=[];
