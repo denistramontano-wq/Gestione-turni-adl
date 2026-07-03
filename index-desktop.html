@@ -210,6 +210,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .t-box-turno{font-size:13px;font-weight:800;color:white;line-height:1.2;margin-bottom:3px;letter-spacing:-.3px}
 .t-box-nome{font-size:11px;font-weight:500;color:rgba(255,255,255,.85);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .t-box-assenza{display:flex;align-items:center;gap:3px;margin-top:4px;font-size:10px;font-weight:700;background:rgba(0,0,0,.18);color:white;border-radius:6px;padding:2px 6px;width:fit-content}
+.t-box-note{display:flex;align-items:center;gap:3px;margin-top:4px;font-size:10px;font-style:italic;color:rgba(255,255,255,.8);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 /* box colors by group */
 .t-box-mat{background:linear-gradient(135deg,#1E6B3A,#16A34A)}
 .t-box-pom{background:linear-gradient(135deg,#0C447C,#2563EB)}
@@ -1604,11 +1605,12 @@ function renderTurni(){
     const assenza=d.assenza||'';
     const assIcon={'Malattia':'🤒','Permesso':'📋','Assenza':'❌','Ferie':'🏖','Infortunio':'🩹'}[assenza]||'';
     const turnoShort=d.turno.replace('RhoFiera','Rho Fiera').replace('SestoFS','Sesto FS').replace('Famagosta','Famagosta').replace('CnaGobba','C.na Gobba').replace('SanDonato','S. Donato').replace('Comasina','Comasina').replace('SanSiro','San Siro');
-    return `<div class="t-box t-box-${t.grp}${assenza?' assente-box':''}" onclick="openUserDetail('${safeName}')">
+    return `<div class="t-box t-box-${t.grp}${assenza?' assente-box':''}" onclick="openUserDetail('${safeName}')" ${d.note?`title="${d.note.replace(/"/g,'&quot;')}"`:''}>
       ${d.ff?`<div style="position:absolute;bottom:4px;right:4px;background:#DC2626;color:white;font-size:10px;font-weight:800;padding:1px 5px;border-radius:4px;letter-spacing:.05em;line-height:1.4">FF</div>`:''}
       <div class="t-box-turno">${turnoShort}</div>
       <div class="t-box-nome">${displayName}</div>
       ${assenza?`<div class="t-box-assenza">${assIcon} ${assenza}</div>`:''}
+      ${d.note?`<div class="t-box-note">📝 ${d.note}</div>`:''}
       ${isAdmin?`<button style="position:absolute;top:4px;right:4px;background:rgba(255,255,255,.25);border:none;border-radius:6px;padding:2px 5px;font-size:11px;color:white;cursor:pointer" onclick="event.stopPropagation();openEditTurno(${idx})">✏️</button>`:''}
     </div>`;
   }
