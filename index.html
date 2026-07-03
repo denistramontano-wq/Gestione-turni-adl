@@ -381,6 +381,87 @@ mark{background:#FFF3CD;border-radius:2px;padding:0 1px}
 .big-btn{width:100%;padding:16px;border-radius:14px;font-size:16px;font-weight:700;border:none;cursor:pointer;background:var(--purple);color:white;margin-bottom:10px}
 .big-btn:active{opacity:.85}
 .big-btn-outline{background:none;border:2px solid var(--border2);color:var(--text2)}
+
+/* ══════════════════════════════════════════════════════
+   DESKTOP / PC LAYOUT (≥860px)
+   Trasforma la bottom-nav mobile in una sidebar laterale,
+   centra i contenuti e rende le modali "sheet" dei dialog
+   centrati invece di pannelli a comparsa dal basso.
+   ══════════════════════════════════════════════════════ */
+@media (min-width:860px){
+  :root{ --sidebar-w:230px; }
+
+  html,body{overflow:auto}
+
+  #app-shell{
+    display:grid !important;
+    grid-template-columns:var(--sidebar-w) 1fr;
+    grid-template-rows:var(--top-h) 1fr;
+    grid-template-areas:"sidebar topbar" "sidebar content";
+    height:100vh;
+    max-width:1400px;
+    margin:0 auto;
+    box-shadow:0 0 0 1px var(--border);
+  }
+
+  .topbar{grid-area:topbar;padding:0 28px}
+  .topbar-logo{font-size:20px}
+
+  .scroll-area{
+    grid-area:content;
+    padding-bottom:24px;
+  }
+  .scroll-area > .page{max-width:900px;margin:0 auto}
+  .comm-tabs{max-width:900px;margin:0 auto;padding-left:0;padding-right:0}
+
+  /* ── SIDEBAR (era bottom-nav) ── */
+  .bottom-nav{
+    grid-area:sidebar;
+    flex-direction:column;
+    height:100vh;
+    border-top:none;
+    border-right:1px solid var(--border);
+    padding:16px 12px;
+    gap:4px;
+    align-items:stretch;
+  }
+  .nav-item{
+    flex:0 0 auto;
+    flex-direction:row;
+    justify-content:flex-start;
+    align-items:center;
+    gap:12px;
+    padding:12px 14px;
+    border-radius:12px;
+    font-size:14.5px;
+    position:relative;
+  }
+  .nav-item:hover{background:var(--surface2)}
+  .nav-item.active{background:var(--purple-lt)}
+  .nav-icon{font-size:19px}
+  .nav-label{font-size:14.5px;font-weight:600}
+  #comm-badge{position:static !important;top:auto !important;right:auto !important;margin-left:auto}
+
+  /* ── MODALI: dialog centrato invece di sheet dal basso ── */
+  .overlay{align-items:center}
+  .sheet{
+    border-radius:20px;
+    width:100%;
+    max-width:480px;
+    max-height:80vh;
+  }
+
+  /* ── LISTE più respiro su schermi larghi ── */
+  #comm-list, #rich-list, .user-list-card, .admin-card{max-width:900px;margin-left:auto;margin-right:auto}
+
+  /* ── LOGIN: card più contenuta ── */
+  #login-screen{padding:40px}
+}
+
+@media (min-width:1100px){
+  :root{ --sidebar-w:250px; }
+  .nav-item{font-size:15px;padding:13px 16px}
+}
 </style>
 </head>
 <body>
