@@ -35,6 +35,7 @@
   =========================================================================
 -->
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
 
 <style>
@@ -254,19 +255,21 @@
    1. CONFIGURAZIONE FIREBASE — sostituisci con i valori del tuo progetto
    ========================================================================= */
 const firebaseConfig = {
-  apiKey: "AIzaSyCBiJ4p3kucfFuCdqNBL43WL6g-IzGMDoc",
-  authDomain: "foglio-ore-bf9c2.firebaseapp.com",
-  databaseURL: "https://foglio-ore-bf9c2-default-rtdb.europe-west1.firebasedatabase.app",
-  projectId: "foglio-ore-bf9c2",
-  storageBucket: "foglio-ore-bf9c2.firebasestorage.app",
-  messagingSenderId: "775356430505",
-  appId: "1:775356430505:web:01cefa56a5757ac9a391b8"
+  apiKey: "AIzaSyAC754JvbEpQSxG8VyZgcGEIVyBkI9OZp8",
+  authDomain: "turni-treni.firebaseapp.com",
+  databaseURL: "https://turni-treni-default-rtdb.europe-west1.firebasedatabase.app",
+  projectId: "turni-treni",
+  storageBucket: "turni-treni.firebasestorage.app",
+  messagingSenderId: "56990486159",
+  appId: "1:56990486159:web:c11af07363648d2e836afa"
 };
 
 let db = null;
+let auth = null;
 let firebaseReady = false;
 try{
   firebase.initializeApp(firebaseConfig);
+  auth = firebase.auth();
   db = firebase.database();
   firebaseReady = true;
 }catch(err){
@@ -274,24 +277,36 @@ try{
 }
 
 /* =========================================================================
-   1bis. ACCESSO — riservato agli amministratori già autenticati in Turni ADL.
-   Niente login separato: si riusa la sessione admin di Turni ADL tramite un
-   flag condiviso in localStorage (stesso dominio, cartella foglio-ore/).
+   1bis. ACCESSO — stesso progetto Firebase di Turni ADL: se l'amministratore
+   ha già effettuato l'accesso in Turni ADL, la sessione è già valida qui
+   (stesso dominio Firebase Auth), senza bisogno di un secondo login. Si
+   verifica comunque il ruolo admin leggendo account_ruoli/{uid}, la stessa
+   fonte usata da Turni ADL.
    ========================================================================= */
 const loginShell = document.getElementById('loginShell');
 const appShell = document.getElementById('app');
 
-function hasAdminBridge(){
-  try{
-    const raw = localStorage.getItem('foglioOreAdminSession');
-    return !!(raw && JSON.parse(raw).ts);
-  }catch(e){ return false; }
-}
-
-if(hasAdminBridge()){
-  loginShell.classList.add('hidden');
-  appShell.classList.remove('hidden');
-  initAppData();
+if(firebaseReady){
+  auth.onAuthStateChanged(user=>{
+    if(!user){
+      loginShell.classList.remove('hidden');
+      appShell.classList.add('hidden');
+      return;
+    }
+    db.ref('account_ruoli/'+user.uid).once('value').then(snap=>{
+      if(snap.val() === 'admin'){
+        loginShell.classList.add('hidden');
+        appShell.classList.remove('hidden');
+        initAppData();
+      }else{
+        loginShell.classList.remove('hidden');
+        appShell.classList.add('hidden');
+      }
+    }).catch(()=>{
+      loginShell.classList.remove('hidden');
+      appShell.classList.add('hidden');
+    });
+  });
 }else{
   loginShell.classList.remove('hidden');
   appShell.classList.add('hidden');
