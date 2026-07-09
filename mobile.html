@@ -2,6 +2,23 @@
 <html lang="it">
 <head>
 <meta charset="UTF-8">
+<script>
+/* Redirect automatico in base alla larghezza schermo: dai 900px in su si usa
+   la versione desktop. ?view=mobile|desktop nell'URL forza una versione e la
+   ricorda per il resto della sessione (evita redirect ripetuti navigando
+   tra le pagine). */
+(function(){
+  try{
+    var forced = new URLSearchParams(location.search).get('view');
+    if(forced === 'mobile' || forced === 'desktop') sessionStorage.setItem('turniViewOverride', forced);
+    var override = sessionStorage.getItem('turniViewOverride');
+    if(override === 'mobile') return;
+    if(override === 'desktop' || window.innerWidth >= 900){
+      location.replace('index.html' + location.search + location.hash);
+    }
+  }catch(e){}
+})();
+</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
