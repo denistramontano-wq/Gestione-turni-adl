@@ -159,7 +159,8 @@
       <span><b>354</b> Mancato pasto</span>
       <span><b>386</b> Guida treno</span>
       <span><b>387</b> Guida autovettura</span>
-      <button class="primary" style="margin-left:auto;" onclick="exportCSV()">Esporta CSV mese</button>
+      <button class="primary" style="margin-left:auto;" onclick="applyTurniSync()">🔄 Sincronizza turni</button>
+      <button class="primary" onclick="exportCSV()">Esporta CSV mese</button>
     </div>
     <div class="summary-row" id="summaryCards"></div>
     <div class="table-wrap">
@@ -359,6 +360,7 @@ function initAppData(){
   db.ref('ore').on('value', snap=>{
     oreCache = snap.val() || {};
     renderAll();
+    applyTurniSync(true);
   }, err=>{
     showBanner("Errore nel caricamento da Firebase: " + err.message, true);
   });
@@ -366,7 +368,11 @@ function initAppData(){
 
 function setField(date, field, value){
   if(!firebaseReady) return;
-  db.ref(`ore/${date}/${field}`).set(value).then(()=>{
+  const updates = {[field]: value};
+  // Un campo orario/turno modificato a mano non deve più essere toccato
+  // dalla sincronizzazione automatica dei turni.
+  if(field==='entrata'||field==='uscita'||field==='turno') updates.autoSync = false;
+  db.ref(`ore/${date}`).update(updates).then(()=>{
     const status = document.getElementById('saveStatus');
     status.textContent = "Salvato ✓ (" + new Date().toLocaleTimeString('it-IT') + ")";
     status.classList.remove('err'); status.classList.add('saved');
@@ -375,6 +381,46 @@ function setField(date, field, value){
     status.textContent = "Errore salvataggio: " + err.message;
     status.classList.remove('saved'); status.classList.add('err');
   });
+}
+
+/* =========================================================================
+   4bis. SINCRONIZZAZIONE AUTOMATICA DA TURNI ADL
+   Legge da localStorage (scritto dall'app Turni prima della navigazione)
+   turno+entrata+uscita per ogni giorno fino a oggi, e li scrive su Firebase
+   SOLO per i giorni ancora "vuoti" o già compilati automaticamente in
+   precedenza (autoSync===true). Un giorno modificato a mano (autoSync
+   esplicitamente false, oppure con dati già presenti da prima di questa
+   funzionalità) non viene mai sovrascritto.
+   ========================================================================= */
+function applyTurniSync(silent){
+  if(!firebaseReady) return;
+  let payload;
+  try{ payload = JSON.parse(localStorage.getItem('turniSyncPayload')||'null'); }catch(e){ payload = null; }
+  if(!payload || !payload.giorni){
+    if(!silent) showBanner("Nessun dato turni da sincronizzare: apri il Foglio Ore dal pulsante nell'app Turni ADL.", true);
+    return;
+  }
+  const oggi = new Date();
+  const oggiStr = oggi.getFullYear()+'-'+pad(oggi.getMonth()+1)+'-'+pad(oggi.getDate());
+  let count = 0;
+  Object.keys(payload.giorni).forEach(dateStr=>{
+    if(dateStr > oggiStr) return;
+    const rec = oreCache[dateStr] || {};
+    const isManual = rec.autoSync===false || (rec.autoSync!==true && (rec.entrata||rec.uscita||rec.turno));
+    if(isManual) return;
+    const src = payload.giorni[dateStr];
+    if(rec.autoSync===true && rec.entrata===(src.entrata||'') && rec.uscita===(src.uscita||'') && rec.turno===(src.turno||'')) return;
+    db.ref('ore/'+dateStr).update({entrata: src.entrata||'', uscita: src.uscita||'', turno: src.turno||'', autoSync: true});
+    count++;
+  });
+  const status = document.getElementById('saveStatus');
+  if(count>0){
+    status.textContent = `Sincronizzati ${count} giorni dai turni ✓ (` + new Date().toLocaleTimeString('it-IT') + ")";
+    status.classList.remove('err'); status.classList.add('saved');
+  } else if(!silent){
+    status.textContent = "Turni già sincronizzati, nessuna modifica da applicare.";
+    status.classList.remove('err'); status.classList.add('saved');
+  }
 }
 
 /* =========================================================================

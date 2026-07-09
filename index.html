@@ -620,7 +620,7 @@ mark{background:#FFF3CD;border-radius:2px;padding:0 1px}
           <div class="admin-row-text"><div class="admin-row-title">Invia comunicazione</div><div class="admin-row-sub">A un dipendente o a tutti</div></div>
           <span class="admin-row-arrow">›</span>
         </div>
-        <div class="admin-row" onclick="window.location.href='foglio-ore/index.html'">
+        <div class="admin-row" onclick="syncTurniToFoglioOre();window.location.href='foglio-ore/index.html'">
           <span class="admin-row-icon">🕒</span>
           <div class="admin-row-text"><div class="admin-row-title">Foglio Ore</div><div class="admin-row-sub">Monitoraggio ore di lavoro</div></div>
           <span class="admin-row-arrow">›</span>
@@ -648,7 +648,7 @@ mark{background:#FFF3CD;border-radius:2px;padding:0 1px}
   <button class="nav-item" id="nav-admin" onclick="switchPage('admin',this)">
     <span class="nav-icon">⚙️</span><span class="nav-label">Admin</span>
   </button>
-  <button class="nav-item" id="nav-foglioore" style="display:none" onclick="window.location.href='foglio-ore/index.html'">
+  <button class="nav-item" id="nav-foglioore" style="display:none" onclick="syncTurniToFoglioOre();window.location.href='foglio-ore/index.html'">
     <span class="nav-icon">🕒</span><span class="nav-label">Foglio Ore</span>
   </button>
 </nav>
@@ -2506,6 +2506,32 @@ function saveEditUser(){
 function getOwnNomeChiave(){
   const u=users.find(u=>u.matricola===currentMatricola);
   return u?u.nome:null;
+}
+
+/* ══ SINCRONIZZAZIONE TURNI → FOGLIO ORE ══
+   Prepara, nel localStorage (condiviso tra le pagine dello stesso sito),
+   turno+orario dei propri turni fino a oggi: la pagina Foglio Ore li legge
+   al caricamento e compila automaticamente i giorni non già modificati
+   manualmente. */
+function syncTurniToFoglioOre(){
+  const nomeKey=getOwnNomeChiave();
+  if(!nomeKey)return;
+  const oggi=new Date();
+  const oggiStr=oggi.getFullYear()+'-'+String(oggi.getMonth()+1).padStart(2,'0')+'-'+String(oggi.getDate()).padStart(2,'0');
+  const giorni={};
+  data.filter(d=>d.nome===nomeKey&&d.giorno).forEach(d=>{
+    const meseIdx=MONTHS.indexOf(d.mese);
+    if(meseIdx<0)return;
+    const dateStr=d.anno+'-'+String(meseIdx+1).padStart(2,'0')+'-'+String(d.giorno).padStart(2,'0');
+    if(dateStr>oggiStr)return;
+    const t=TURNO_MAP[d.turno];
+    if(!t)return;
+    const m=(t.orario||'').match(/(\d{2}:\d{2}).*?(\d{2}:\d{2})/);
+    giorni[dateStr]={turno:d.turno, entrata:m?m[1]:'', uscita:m?m[2]:''};
+  });
+  try{
+    localStorage.setItem('turniSyncPayload', JSON.stringify({nome:nomeKey, generatedAt:Date.now(), giorni}));
+  }catch(e){}
 }
 
 function exportUserExcel(nome){
