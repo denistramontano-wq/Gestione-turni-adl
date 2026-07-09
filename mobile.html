@@ -1123,7 +1123,6 @@ function doLogin(matricola, password){
 function doLogout(){
   currentRole=null; currentMatricola=null;
   if(fbReady) fbAuth.signOut().catch(()=>{});
-  try{ localStorage.removeItem('foglioOreAdminSession'); }catch(e){}
 }
 
 function isAdminRole(){ return currentRole==='admin'; }
@@ -1131,10 +1130,6 @@ function syncIsAdminFlag(){
   isAdmin = (currentRole==='admin');
   const navFoglio = document.getElementById('nav-foglioore');
   if(navFoglio) navFoglio.style.display = isAdmin ? '' : 'none';
-  try{
-    if(isAdmin) localStorage.setItem('foglioOreAdminSession', JSON.stringify({ts:Date.now()}));
-    else localStorage.removeItem('foglioOreAdminSession');
-  }catch(e){}
 }
 
 let isAdmin=false;
