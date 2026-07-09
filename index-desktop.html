@@ -735,6 +735,11 @@ body{font-family:'Segoe UI',-apple-system,BlinkMacSystemFont,Roboto,sans-serif}
           <div class="admin-row-text"><div class="admin-row-title">Invia comunicazione</div><div class="admin-row-sub">A un dipendente o a tutti</div></div>
           <span class="admin-row-arrow">›</span>
         </div>
+        <div class="admin-row" onclick="window.location.href='foglio-ore/index.html'">
+          <span class="admin-row-icon">🕒</span>
+          <div class="admin-row-text"><div class="admin-row-title">Foglio Ore</div><div class="admin-row-sub">Monitoraggio ore di lavoro</div></div>
+          <span class="admin-row-arrow">›</span>
+        </div>
       </div>
       <div class="admin-section-lbl">Dipendenti (<span id="user-count">0</span>)</div>
       <div style="margin:0 16px 10px">
@@ -761,6 +766,9 @@ body{font-family:'Segoe UI',-apple-system,BlinkMacSystemFont,Roboto,sans-serif}
   </button>
   <button class="nav-item" id="nav-admin" onclick="switchPage('admin',this)">
     <span class="nav-icon">⚙️</span><span class="nav-label">Amministrazione</span>
+  </button>
+  <button class="nav-item" id="nav-foglioore" style="display:none" onclick="window.location.href='foglio-ore/index.html'">
+    <span class="nav-icon">🕒</span><span class="nav-label">Foglio Ore</span>
   </button>
 </nav>
 
@@ -1220,7 +1228,11 @@ function doLogout(){
 }
 
 function isAdminRole(){ return currentRole==='admin'; }
-function syncIsAdminFlag(){ isAdmin = (currentRole==='admin'); }
+function syncIsAdminFlag(){
+  isAdmin = (currentRole==='admin');
+  const navFoglio = document.getElementById('nav-foglioore');
+  if(navFoglio) navFoglio.style.display = isAdmin ? '' : 'none';
+}
 
 function toggleSidebar(){
   const shell=document.getElementById('app-shell');

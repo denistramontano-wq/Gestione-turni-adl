@@ -25,6 +25,11 @@ self.addEventListener('activate', e => {
 });
 
 self.addEventListener('fetch', e => {
+  // Non intercettare le chiamate cross-origin (es. Firebase, CDN): devono
+  // sempre passare dalla rete, mai essere sostituite dalla cache locale.
+  const url = new URL(e.request.url);
+  if (url.origin !== self.location.origin) return;
+
   e.respondWith(
     caches.match(e.request).then(cached => {
       if (cached) return cached;
@@ -34,7 +39,7 @@ self.addEventListener('fetch', e => {
           caches.open(CACHE).then(c => c.put(e.request, clone));
         }
         return res;
-      }).catch(() => caches.match('./index.html'));
+      }).catch(() => e.request.mode === 'navigate' ? caches.match('./index.html') : Response.error());
     })
   );
 });
