@@ -371,7 +371,7 @@ function setField(date, field, value){
   const updates = {[field]: value};
   // Un campo orario/turno modificato a mano non deve più essere toccato
   // dalla sincronizzazione automatica dei turni.
-  if(field==='entrata'||field==='uscita'||field==='turno') updates.autoSync = false;
+  if(field==='entrata'||field==='uscita'||field==='turno'||field==='cod331') updates.autoSync = false;
   db.ref(`ore/${date}`).update(updates).then(()=>{
     const status = document.getElementById('saveStatus');
     status.textContent = "Salvato ✓ (" + new Date().toLocaleTimeString('it-IT') + ")";
@@ -391,6 +391,9 @@ function setField(date, field, value){
    precedenza (autoSync===true). Un giorno modificato a mano (autoSync
    esplicitamente false, oppure con dati già presenti da prima di questa
    funzionalità) non viene mai sovrascritto.
+   Il codice 331 viene spuntato automaticamente nei giorni di presenza
+   (turno lavorativo, non riposo/scomputo/assenza) e segue le stesse
+   regole di override manuale.
    ========================================================================= */
 function applyTurniSync(silent){
   if(!firebaseReady) return;
@@ -406,11 +409,12 @@ function applyTurniSync(silent){
   Object.keys(payload.giorni).forEach(dateStr=>{
     if(dateStr > oggiStr) return;
     const rec = oreCache[dateStr] || {};
-    const isManual = rec.autoSync===false || (rec.autoSync!==true && (rec.entrata||rec.uscita||rec.turno));
+    const isManual = rec.autoSync===false || (rec.autoSync!==true && (rec.entrata||rec.uscita||rec.turno||rec.cod331));
     if(isManual) return;
     const src = payload.giorni[dateStr];
-    if(rec.autoSync===true && rec.entrata===(src.entrata||'') && rec.uscita===(src.uscita||'') && rec.turno===(src.turno||'')) return;
-    db.ref('ore/'+dateStr).update({entrata: src.entrata||'', uscita: src.uscita||'', turno: src.turno||'', autoSync: true});
+    const cod331 = !!src.presente;
+    if(rec.autoSync===true && rec.entrata===(src.entrata||'') && rec.uscita===(src.uscita||'') && rec.turno===(src.turno||'') && !!rec.cod331===cod331) return;
+    db.ref('ore/'+dateStr).update({entrata: src.entrata||'', uscita: src.uscita||'', turno: src.turno||'', cod331, autoSync: true});
     count++;
   });
   const status = document.getElementById('saveStatus');

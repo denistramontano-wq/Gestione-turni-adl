@@ -2666,7 +2666,9 @@ function syncTurniToFoglioOre(){
     const t=TURNO_MAP[d.turno];
     if(!t)return;
     const m=(t.orario||'').match(/(\d{2}:\d{2}).*?(\d{2}:\d{2})/);
-    giorni[dateStr]={turno:d.turno, entrata:m?m[1]:'', uscita:m?m[2]:''};
+    // "Presente" = turno lavorativo, non riposo/scomputo e senza assenza registrata.
+    const presente = t.grp!=='rip' && t.grp!=='sco' && !d.assenza;
+    giorni[dateStr]={turno:d.turno, entrata:m?m[1]:'', uscita:m?m[2]:'', presente};
   });
   try{
     localStorage.setItem('turniSyncPayload', JSON.stringify({nome:nomeKey, generatedAt:Date.now(), giorni}));
