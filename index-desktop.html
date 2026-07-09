@@ -2653,12 +2653,16 @@ function getOwnNomeChiave(){
    al caricamento e compila automaticamente i giorni non già modificati
    manualmente. */
 function syncTurniToFoglioOre(){
-  const nomeKey=getOwnNomeChiave();
-  if(!nomeKey)return;
+  const ownNome=getOwnNomeChiave();
   const oggi=new Date();
   const oggiStr=oggi.getFullYear()+'-'+String(oggi.getMonth()+1).padStart(2,'0')+'-'+String(oggi.getDate()).padStart(2,'0');
-  const giorni={};
-  data.filter(d=>d.nome===nomeKey&&d.giorno).forEach(d=>{
+  const dipendenti={};
+  const labelFor=u=>u.cognome?(u.nomePropr?`${u.cognome} ${u.nomePropr}`:u.cognome):u.nome;
+  users.forEach(u=>{
+    if(!u.nome)return;
+    dipendenti[u.nome]={label:labelFor(u), giorni:{}};
+  });
+  data.filter(d=>d.nome&&d.giorno).forEach(d=>{
     const meseIdx=MONTHS.indexOf(d.mese);
     if(meseIdx<0)return;
     const dateStr=d.anno+'-'+String(meseIdx+1).padStart(2,'0')+'-'+String(d.giorno).padStart(2,'0');
@@ -2668,10 +2672,11 @@ function syncTurniToFoglioOre(){
     const m=(t.orario||'').match(/(\d{2}:\d{2}).*?(\d{2}:\d{2})/);
     // "Presente" = turno lavorativo, non riposo/scomputo e senza assenza registrata.
     const presente = t.grp!=='rip' && t.grp!=='sco' && !d.assenza;
-    giorni[dateStr]={turno:d.turno, entrata:m?m[1]:'', uscita:m?m[2]:'', presente};
+    if(!dipendenti[d.nome]) dipendenti[d.nome]={label:d.nome, giorni:{}};
+    dipendenti[d.nome].giorni[dateStr]={turno:d.turno, entrata:m?m[1]:'', uscita:m?m[2]:'', presente};
   });
   try{
-    localStorage.setItem('turniSyncPayload', JSON.stringify({nome:nomeKey, generatedAt:Date.now(), giorni}));
+    localStorage.setItem('turniSyncPayload', JSON.stringify({ownNome, generatedAt:Date.now(), dipendenti}));
   }catch(e){}
 }
 

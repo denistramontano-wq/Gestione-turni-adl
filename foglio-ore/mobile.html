@@ -124,8 +124,11 @@
       </div>
       <button class="logout-btn" id="btnLogout">Esci</button>
     </div>
-    <div class="date-nav">
+    <div class="date-nav" style="margin-top:8px;">
       <a href="../index.html" class="logout-btn" style="text-decoration:none;display:inline-flex;align-items:center">&#8249; Turni</a>
+      <select id="selDipendente" style="flex:1;min-width:0;"></select>
+    </div>
+    <div class="date-nav">
       <button class="nav-arrow" id="prevMonth">&#8249;</button>
       <div class="current-period" id="currentPeriod">-</div>
       <button class="nav-arrow" id="nextMonth">&#8250;</button>
@@ -137,7 +140,7 @@
 
   <div class="content" id="content-dettaglio">
     <div class="summary-scroll" id="summaryCards"></div>
-    <button class="primary" style="margin-top:0;margin-bottom:10px;" onclick="applyTurniSync()">🔄 Sincronizza turni</button>
+    <button class="primary" style="margin-top:0;margin-bottom:10px;" onclick="applyTurniSyncAll(null,false)">🔄 Sincronizza turni</button>
     <div id="dayList"></div>
     <div class="status" id="saveStatus">Le modifiche vengono salvate automaticamente su Firebase.</div>
   </div>
@@ -252,7 +255,10 @@ const CODICI = [
 /* =========================================================================
    3. STATO
    ========================================================================= */
-let oreCache = {};  // { "YYYY-MM-DD": {...record} }
+let oreCache = {};  // { "YYYY-MM-DD": {...record} } del dipendente selezionato
+let currentDipendente = null;   // chiave (nome) del dipendente selezionato
+let dipendentiList = [];        // [{key,label}]
+let oreListenerRef = null;      // riferimento Firebase in ascolto, staccato al cambio dipendente
 const now = new Date();
 let currentMese = now.getMonth();
 let currentAnno = now.getFullYear();
@@ -297,7 +303,7 @@ function setConn(on, label){
 }
 
 /* =========================================================================
-   4. FIREBASE: caricamento in tempo reale
+   4. FIREBASE: dipendenti + caricamento in tempo reale
    ========================================================================= */
 function initAppData(){
   if(window.__oreListenerAttached) return;
@@ -308,22 +314,104 @@ function initAppData(){
     setConn(!!snap.val(), snap.val() ? "online" : "offline");
   });
 
-  db.ref('ore').on('value', snap=>{
+  initDipendentiEMigrazione();
+}
+
+function buildDipendentiSelect(){
+  const sel = document.getElementById('selDipendente');
+  if(!sel) return;
+  sel.innerHTML = dipendentiList.length
+    ? dipendentiList.map(d=>`<option value="${d.key}"${d.key===currentDipendente?' selected':''}>${d.label}</option>`).join('')
+    : '<option value="">Nessun dipendente</option>';
+}
+
+function switchDipendente(nomeKey){
+  if(!nomeKey || nomeKey===currentDipendente) return;
+  if(oreListenerRef) oreListenerRef.off();
+  currentDipendente = nomeKey;
+  try{ localStorage.setItem('foglioOreLastDipendente', nomeKey); }catch(e){}
+  oreCache = {};
+  renderAll();
+  attachOreListener();
+}
+
+function attachOreListener(){
+  if(!currentDipendente) return;
+  oreListenerRef = db.ref('ore/'+currentDipendente);
+  oreListenerRef.on('value', snap=>{
     oreCache = snap.val() || {};
     renderAll();
-    applyTurniSync(true);
   }, err=>{
     showBanner("Errore nel caricamento da Firebase: " + err.message, true);
   });
 }
 
+/* Costruisce l'elenco dipendenti (da Firebase + dall'ultima sincronizzazione
+   Turni) e, se serve, migra i vecchi dati salvati con la struttura piatta
+   ore/{data} (versione mono-dipendente) sotto ore/{dipendente}/{data}. */
+function initDipendentiEMigrazione(){
+  let payload = null;
+  try{ payload = JSON.parse(localStorage.getItem('turniSyncPayload')||'null'); }catch(e){}
+
+  db.ref('ore').once('value').then(snap=>{
+    const root = snap.val() || {};
+    const dateKeyRe = /^\d{4}-\d{2}-\d{2}$/;
+    const legacyDateKeys = Object.keys(root).filter(k=>dateKeyRe.test(k));
+    const existingDipendenti = Object.keys(root).filter(k=>!dateKeyRe.test(k));
+
+    const finishSetup = ()=>{
+      const map = {};
+      existingDipendenti.forEach(k=>{ map[k] = {key:k, label:k}; });
+      if(payload && payload.dipendenti){
+        Object.keys(payload.dipendenti).forEach(k=>{
+          map[k] = {key:k, label:(payload.dipendenti[k].label||k)};
+        });
+      }
+      dipendentiList = Object.values(map).sort((a,b)=>a.label.localeCompare(b.label,'it'));
+
+      let lastUsed=null;
+      try{ lastUsed = localStorage.getItem('foglioOreLastDipendente'); }catch(e){}
+      let initial = null;
+      if(lastUsed && dipendentiList.some(d=>d.key===lastUsed)) initial = lastUsed;
+      else if(payload && payload.ownNome && dipendentiList.some(d=>d.key===payload.ownNome)) initial = payload.ownNome;
+      else if(dipendentiList.length) initial = dipendentiList[0].key;
+
+      currentDipendente = initial;
+      buildDipendentiSelect();
+      if(initial) attachOreListener();
+      else showBanner("Nessun dipendente disponibile: apri il Foglio Ore dall'app Turni ADL per sincronizzare l'elenco.", true);
+
+      applyTurniSyncAll(payload, true);
+    };
+
+    // Migrazione una tantum: i vecchi dati mono-dipendente (ore/{data}) vengono
+    // spostati sotto ore/{ownNome}/{data}, solo se quel dipendente non ha
+    // ancora dati nella nuova struttura (per non sovrascrivere nulla).
+    if(legacyDateKeys.length && payload && payload.ownNome && existingDipendenti.indexOf(payload.ownNome)===-1){
+      const updates = {};
+      legacyDateKeys.forEach(k=>{
+        updates['ore/'+payload.ownNome+'/'+k] = root[k];
+        updates['ore/'+k] = null;
+      });
+      db.ref().update(updates).then(()=>{
+        existingDipendenti.push(payload.ownNome);
+        finishSetup();
+      }).catch(()=> finishSetup());
+    } else {
+      finishSetup();
+    }
+  }).catch(err=>{
+    showBanner("Errore nel caricamento da Firebase: " + err.message, true);
+  });
+}
+
 function setField(date, field, value){
-  if(!firebaseReady) return;
+  if(!firebaseReady || !currentDipendente) return;
   const updates = {[field]: value};
   // Un campo orario/turno modificato a mano non deve più essere toccato
   // dalla sincronizzazione automatica dei turni.
   if(field==='entrata'||field==='uscita'||field==='turno'||field==='cod331') updates.autoSync = false;
-  db.ref(`ore/${date}`).update(updates).then(()=>{
+  db.ref(`ore/${currentDipendente}/${date}`).update(updates).then(()=>{
     const status = document.getElementById('saveStatus');
     status.textContent = "Salvato ✓ (" + new Date().toLocaleTimeString('it-IT') + ")";
     status.classList.remove('err'); status.classList.add('saved');
@@ -335,47 +423,62 @@ function setField(date, field, value){
 }
 
 /* =========================================================================
-   4bis. SINCRONIZZAZIONE AUTOMATICA DA TURNI ADL
+   4bis. SINCRONIZZAZIONE AUTOMATICA DA TURNI ADL — TUTTI I DIPENDENTI
    Legge da localStorage (scritto dall'app Turni prima della navigazione)
-   turno+entrata+uscita per ogni giorno fino a oggi, e li scrive su Firebase
-   SOLO per i giorni ancora "vuoti" o già compilati automaticamente in
-   precedenza (autoSync===true). Un giorno modificato a mano (autoSync
+   turno+entrata+uscita di OGNI dipendente fino a oggi, e li scrive su
+   Firebase SOLO per i giorni ancora "vuoti" o già compilati automaticamente
+   in precedenza (autoSync===true). Un giorno modificato a mano (autoSync
    esplicitamente false, oppure con dati già presenti da prima di questa
-   funzionalità) non viene mai sovrascritto.
-   Il codice 331 viene spuntato automaticamente nei giorni di presenza
-   (turno lavorativo, non riposo/scomputo/assenza) e segue le stesse
-   regole di override manuale.
+   funzionalità) non viene mai sovrascritto. Il codice 331 viene spuntato
+   automaticamente nei giorni di presenza (turno lavorativo, non
+   riposo/scomputo/assenza) e segue le stesse regole di override manuale.
    ========================================================================= */
-function applyTurniSync(silent){
+function applyTurniSyncAll(payload, silent){
   if(!firebaseReady) return;
-  let payload;
-  try{ payload = JSON.parse(localStorage.getItem('turniSyncPayload')||'null'); }catch(e){ payload = null; }
-  if(!payload || !payload.giorni){
+  if(payload===undefined || payload===null){
+    try{ payload = JSON.parse(localStorage.getItem('turniSyncPayload')||'null'); }catch(e){ payload = null; }
+  }
+  if(!payload || !payload.dipendenti){
     if(!silent) showBanner("Nessun dato turni da sincronizzare: apri il Foglio Ore dal pulsante nell'app Turni ADL.", true);
     return;
   }
   const oggi = new Date();
   const oggiStr = oggi.getFullYear()+'-'+pad(oggi.getMonth()+1)+'-'+pad(oggi.getDate());
-  let count = 0;
-  Object.keys(payload.giorni).forEach(dateStr=>{
-    if(dateStr > oggiStr) return;
-    const rec = oreCache[dateStr] || {};
-    const isManual = rec.autoSync===false || (rec.autoSync!==true && (rec.entrata||rec.uscita||rec.turno||rec.cod331));
-    if(isManual) return;
-    const src = payload.giorni[dateStr];
-    const cod331 = !!src.presente;
-    if(rec.autoSync===true && rec.entrata===(src.entrata||'') && rec.uscita===(src.uscita||'') && rec.turno===(src.turno||'') && !!rec.cod331===cod331) return;
-    db.ref('ore/'+dateStr).update({entrata: src.entrata||'', uscita: src.uscita||'', turno: src.turno||'', cod331, autoSync: true});
-    count++;
+
+  db.ref('ore').once('value').then(snap=>{
+    const root = snap.val() || {};
+    const updates = {};
+    let count = 0;
+    Object.keys(payload.dipendenti).forEach(nomeKey=>{
+      const giorni = payload.dipendenti[nomeKey].giorni || {};
+      const recDip = root[nomeKey] || {};
+      Object.keys(giorni).forEach(dateStr=>{
+        if(dateStr > oggiStr) return;
+        const rec = recDip[dateStr] || {};
+        const isManual = rec.autoSync===false || (rec.autoSync!==true && (rec.entrata||rec.uscita||rec.turno||rec.cod331));
+        if(isManual) return;
+        const src = giorni[dateStr];
+        const cod331 = !!src.presente;
+        if(rec.autoSync===true && rec.entrata===(src.entrata||'') && rec.uscita===(src.uscita||'') && rec.turno===(src.turno||'') && !!rec.cod331===cod331) return;
+        updates['ore/'+nomeKey+'/'+dateStr+'/entrata'] = src.entrata||'';
+        updates['ore/'+nomeKey+'/'+dateStr+'/uscita'] = src.uscita||'';
+        updates['ore/'+nomeKey+'/'+dateStr+'/turno'] = src.turno||'';
+        updates['ore/'+nomeKey+'/'+dateStr+'/cod331'] = cod331;
+        updates['ore/'+nomeKey+'/'+dateStr+'/autoSync'] = true;
+        count++;
+      });
+    });
+    if(Object.keys(updates).length) db.ref().update(updates);
+    const status = document.getElementById('saveStatus');
+    if(!status) return;
+    if(count>0){
+      status.textContent = `Sincronizzati ${count} giorni per ${Object.keys(payload.dipendenti).length} dipendenti ✓ (` + new Date().toLocaleTimeString('it-IT') + ")";
+      status.classList.remove('err'); status.classList.add('saved');
+    } else if(!silent){
+      status.textContent = "Turni già sincronizzati, nessuna modifica da applicare.";
+      status.classList.remove('err'); status.classList.add('saved');
+    }
   });
-  const status = document.getElementById('saveStatus');
-  if(count>0){
-    status.textContent = `Sincronizzati ${count} giorni dai turni ✓ (` + new Date().toLocaleTimeString('it-IT') + ")";
-    status.classList.remove('err'); status.classList.add('saved');
-  } else if(!silent){
-    status.textContent = "Turni già sincronizzati, nessuna modifica da applicare.";
-    status.classList.remove('err'); status.classList.add('saved');
-  }
 }
 
 /* =========================================================================
@@ -389,6 +492,7 @@ for(let y = now.getFullYear()-1; y <= now.getFullYear()+1; y++){
   selAnno.appendChild(opt);
 }
 selAnno.addEventListener('change', ()=>{ currentAnno = parseInt(selAnno.value); openDay=null; renderAll(); });
+document.getElementById('selDipendente').addEventListener('change', e=>{ openDay=null; switchDipendente(e.target.value); });
 
 document.getElementById('prevMonth').addEventListener('click', ()=>{
   currentMese--;
@@ -604,8 +708,9 @@ function renderRiepilogo(){
 window.exportCSV = function(){
   const mese = currentMese, anno = currentAnno;
   const nDays = daysInMonth(mese, anno);
+  const dipLabel = (dipendentiList.find(d=>d.key===currentDipendente)||{}).label || currentDipendente || '';
 
-  const rows = [[`Monitoraggio Ore — Periodo: ${MESI[mese]} ${anno}`]];
+  const rows = [[`Monitoraggio Ore — ${dipLabel} — Periodo: ${MESI[mese]} ${anno}`]];
   rows.push([]);
   rows.push(["Giorno","Entrata","Uscita","Ore","Turno","Assenza","Tipo Straord/Scomputo","Ore","Minuti","331 Galleria","338 FF","354 Mancato pasto","386 Guida treno","387 Guida auto","Note"]);
 
@@ -629,7 +734,7 @@ window.exportCSV = function(){
   const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
-  a.href = url; a.download = `Ore_${MESI[mese]}_${anno}.csv`;
+  a.href = url; a.download = `Ore_${dipLabel}_${MESI[mese]}_${anno}.csv`.replace(/\s+/g,'_');
   a.click();
   URL.revokeObjectURL(url);
 };
