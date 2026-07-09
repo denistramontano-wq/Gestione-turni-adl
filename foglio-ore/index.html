@@ -3,9 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Monitoraggio Ore — Denis</title>
+<title>Monitoraggio Ore — Turni ADL</title>
 <link rel="manifest" href="manifest-ore.json">
-<meta name="theme-color" content="#0ea5e9">
+<meta name="theme-color" content="#3C3489">
 <link rel="icon" href="icon-ore.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="icon-ore.svg">
 
@@ -35,14 +35,13 @@
   =========================================================================
 -->
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
 
 <style>
   :root{
-    --bg:#0f172a; --panel:#1a2436; --panel2:#212d42; --border:#2c3a52;
-    --text:#e2e8f0; --muted:#8fa1b8; --accent:#38bdf8; --accent2:#0ea5e9;
-    --green:#22c55e; --red:#ef4444; --amber:#f59e0b;
+    --bg:#F4F3FB; --panel:#fff; --panel2:#F8F7FF; --border:#E2DFFA;
+    --text:#1A1735; --muted:#6B6891; --accent:#534AB7; --accent2:#3C3489;
+    --green:#1E6B3A; --red:#D84040; --amber:#856404;
   }
   *{box-sizing:border-box;}
   html,body{height:100%;margin:0;}
@@ -63,19 +62,19 @@
   .date-nav select{background:var(--panel2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:6px 8px;font-size:13px;}
   .date-nav .current-period{font-weight:700;min-width:130px;text-align:center;font-size:13px;}
 
-  .banner{background:#3a2a10;border:1px solid #6b4e17;color:#f2c94c;padding:10px 16px;font-size:12.5px;display:flex;align-items:center;gap:10px;flex-shrink:0;}
-  .banner.err{background:#3a1414;border-color:#6b1f1f;color:#f2948c;}
+  .banner{background:#FFF3CD;border:1px solid #F5DE9A;color:#856404;padding:10px 16px;font-size:12.5px;display:flex;align-items:center;gap:10px;flex-shrink:0;}
+  .banner.err{background:#FFEEEE;border-color:#FCA5A5;color:var(--red);}
 
   .content{flex:1;min-height:0;display:flex;flex-direction:column;padding:18px 22px;}
   .legend{display:flex;gap:14px;flex-wrap:wrap;align-items:center;font-size:11px;color:var(--muted);margin-bottom:12px;}
   .legend span b{color:var(--text);}
 
   .summary-row{display:flex;gap:14px;margin-bottom:14px;flex-wrap:wrap;}
-  .card{background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:10px 16px;min-width:110px;}
+  .card{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:10px 16px;min-width:110px;}
   .card .label{font-size:10.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;}
   .card .value{font-size:19px;font-weight:700;margin-top:4px;}
 
-  .table-wrap{flex:1;min-height:0;overflow:auto;border:1px solid var(--border);border-radius:8px;}
+  .table-wrap{flex:1;min-height:0;overflow:auto;border:1px solid var(--border);border-radius:14px;}
   table{width:100%;border-collapse:collapse;font-size:12.5px;background:var(--panel);}
   thead th{position:sticky;top:0;background:var(--panel2);color:var(--muted);font-weight:600;padding:8px 6px;border-bottom:1px solid var(--border);z-index:2;white-space:nowrap;}
   thead th.code-head{font-size:10.5px;line-height:1.25;}
@@ -83,15 +82,15 @@
   tbody tr:hover td{background:rgba(255,255,255,.02);}
   td.giorno{text-align:left;font-weight:600;white-space:nowrap;width:100px;padding-left:10px;}
   tr.weekend td.giorno{color:var(--amber);}
-  input[type=time]{width:82px;padding:4px 5px;font-size:12px;border-radius:5px;border:1px solid var(--border);background:var(--panel2);color:var(--text);}
-  input[type=number]{width:56px;padding:4px 5px;font-size:12px;border-radius:5px;border:1px solid var(--border);background:var(--panel2);color:var(--text);}
+  input[type=time]{width:82px;padding:4px 5px;font-size:12px;border-radius:7px;border:1px solid var(--border);background:var(--panel2);color:var(--text);}
+  input[type=number]{width:56px;padding:4px 5px;font-size:12px;border-radius:7px;border:1px solid var(--border);background:var(--panel2);color:var(--text);}
   input[type=time]:focus, input[type=number]:focus, input[type=text]:focus{outline:none;border-color:var(--accent);}
-  input[type=text].note{width:180px;padding:4px 6px;font-size:12px;text-align:left;border-radius:5px;border:1px solid var(--border);background:var(--panel2);color:var(--text);}
-  select.cell-select{width:112px;padding:4px 5px;font-size:12px;border-radius:5px;border:1px solid var(--border);background:var(--panel2);color:var(--text);}
+  input[type=text].note{width:180px;padding:4px 6px;font-size:12px;text-align:left;border-radius:7px;border:1px solid var(--border);background:var(--panel2);color:var(--text);}
+  select.cell-select{width:112px;padding:4px 5px;font-size:12px;border-radius:7px;border:1px solid var(--border);background:var(--panel2);color:var(--text);}
   select.cell-select:focus{outline:none;border-color:var(--accent);}
   .ore-cell{font-weight:700;width:56px;}
   .code-cell{width:40px;cursor:pointer;user-select:none;}
-  .code-box{width:22px;height:22px;border-radius:5px;border:1px solid var(--border);background:var(--panel2);margin:0 auto;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;color:transparent;}
+  .code-box{width:22px;height:22px;border-radius:7px;border:1px solid var(--border);background:var(--panel2);margin:0 auto;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;color:transparent;}
   .code-box.on{background:var(--accent2);border-color:var(--accent2);color:#fff;}
   .code-cell:hover .code-box{border-color:var(--accent);}
   .straord-cell{display:flex;flex-direction:column;gap:3px;align-items:center;}
@@ -110,22 +109,19 @@
   .saldo-pos{color:var(--green);}
   .saldo-neg{color:var(--red);}
 
-  button.primary{background:var(--accent2);border:none;color:#fff;font-weight:600;padding:7px 14px;border-radius:6px;cursor:pointer;font-size:13px;white-space:nowrap;}
-  button.primary:hover{background:var(--accent);}
+  button.primary{background:var(--accent);border:none;color:#fff;font-weight:600;padding:8px 16px;border-radius:10px;cursor:pointer;font-size:13px;white-space:nowrap;transition:background .15s;}
+  button.primary:hover{background:var(--accent2);}
 
   ::-webkit-scrollbar{height:8px;width:8px;}
   ::-webkit-scrollbar-thumb{background:var(--border);border-radius:4px;}
 
   .login-shell{position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;z-index:100;}
-  .login-box{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:32px 28px;width:100%;max-width:320px;}
-  .login-box h2{margin:0 0 4px;font-size:17px;}
-  .login-box p{margin:0 0 18px;font-size:12.5px;color:var(--muted);}
-  .login-box input{width:100%;padding:9px 10px;margin-bottom:10px;border-radius:6px;border:1px solid var(--border);background:var(--panel2);color:var(--text);font-size:13px;}
-  .login-box input:focus{outline:none;border-color:var(--accent);}
-  .login-box button{width:100%;margin-top:4px;}
-  .login-error{color:var(--red);font-size:12px;margin-top:10px;min-height:14px;}
-  .logout-btn{background:none;border:1px solid var(--border);color:var(--muted);font-size:11px;padding:4px 10px;border-radius:6px;cursor:pointer;}
-  .logout-btn:hover{border-color:var(--accent);color:var(--text);}
+  .login-box{background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:36px 30px;width:100%;max-width:340px;text-align:center;box-shadow:0 8px 28px rgba(83,74,183,.12);}
+  .login-box h2{margin:0 0 4px;font-size:17px;color:var(--text);}
+  .login-box p{margin:0 0 20px;font-size:12.5px;color:var(--muted);line-height:1.5;}
+  .login-box a.primary{display:inline-block;text-decoration:none;}
+  .logout-btn{background:none;border:1px solid var(--border);color:var(--muted);font-size:11px;padding:4px 10px;border-radius:8px;cursor:pointer;}
+  .logout-btn:hover{border-color:var(--accent);color:var(--accent);}
 </style>
 </head>
 <body>
@@ -144,7 +140,6 @@
       <div class="current-period" id="currentPeriod">-</div>
       <button class="nav-arrow" id="nextMonth">&#8250;</button>
       <select id="selAnno"></select>
-      <button class="logout-btn" id="btnLogout">Esci</button>
     </div>
   </div>
 
@@ -208,11 +203,8 @@
 <div class="login-shell" id="loginShell">
   <div class="login-box">
     <h2>Monitoraggio Ore</h2>
-    <p>Accesso riservato — inserisci le tue credenziali.</p>
-    <input type="email" id="loginEmail" placeholder="Email" autocomplete="username">
-    <input type="password" id="loginPassword" placeholder="Password" autocomplete="current-password">
-    <button class="primary" id="btnLogin">Accedi</button>
-    <div class="login-error" id="loginError"></div>
+    <p>Sezione riservata agli amministratori. Accedi a Turni ADL con un account amministratore per aprire automaticamente il Foglio Ore.</p>
+    <a class="primary" href="../index.html">&#8249; Vai a Turni ADL</a>
   </div>
 </div>
 
@@ -231,11 +223,9 @@ const firebaseConfig = {
 };
 
 let db = null;
-let auth = null;
 let firebaseReady = false;
 try{
   firebase.initializeApp(firebaseConfig);
-  auth = firebase.auth();
   db = firebase.database();
   firebaseReady = true;
 }catch(err){
@@ -243,37 +233,27 @@ try{
 }
 
 /* =========================================================================
-   1bis. LOGIN / LOGOUT
+   1bis. ACCESSO — riservato agli amministratori già autenticati in Turni ADL.
+   Niente login separato: si riusa la sessione admin di Turni ADL tramite un
+   flag condiviso in localStorage (stesso dominio, cartella foglio-ore/).
    ========================================================================= */
 const loginShell = document.getElementById('loginShell');
 const appShell = document.getElementById('app');
 
-function doLogin(){
-  const email = document.getElementById('loginEmail').value.trim();
-  const password = document.getElementById('loginPassword').value;
-  const errEl = document.getElementById('loginError');
-  errEl.textContent = '';
-  if(!email || !password){ errEl.textContent = "Inserisci email e password."; return; }
-  auth.signInWithEmailAndPassword(email, password).catch(err=>{
-    errEl.textContent = "Accesso non riuscito: " + (err.code === 'auth/invalid-credential' || err.code === 'auth/wrong-password' || err.code === 'auth/user-not-found' ? "email o password errate." : err.message);
-  });
+function hasAdminBridge(){
+  try{
+    const raw = localStorage.getItem('foglioOreAdminSession');
+    return !!(raw && JSON.parse(raw).ts);
+  }catch(e){ return false; }
 }
-document.getElementById('btnLogin').addEventListener('click', doLogin);
-document.getElementById('loginPassword').addEventListener('keydown', (e)=>{ if(e.key==='Enter') doLogin(); });
-document.getElementById('loginEmail').addEventListener('keydown', (e)=>{ if(e.key==='Enter') doLogin(); });
-document.getElementById('btnLogout').addEventListener('click', ()=> auth.signOut());
 
-if(firebaseReady){
-  auth.onAuthStateChanged(user=>{
-    if(user){
-      loginShell.classList.add('hidden');
-      appShell.classList.remove('hidden');
-      initAppData();
-    }else{
-      loginShell.classList.remove('hidden');
-      appShell.classList.add('hidden');
-    }
-  });
+if(hasAdminBridge()){
+  loginShell.classList.add('hidden');
+  appShell.classList.remove('hidden');
+  initAppData();
+}else{
+  loginShell.classList.remove('hidden');
+  appShell.classList.add('hidden');
 }
 
 /* =========================================================================
@@ -353,6 +333,7 @@ function setConn(on, label){
    4. FIREBASE: dipendenti + caricamento in tempo reale delle ore
    ========================================================================= */
 function initAppData(){
+  if(!db) return;
   if(window.__oreListenerAttached) return;
   window.__oreListenerAttached = true;
 
