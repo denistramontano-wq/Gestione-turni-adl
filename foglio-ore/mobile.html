@@ -1,0 +1,598 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Monitoraggio Ore — Denis</title>
+<link rel="manifest" href="manifest-ore-mobile.json">
+<meta name="theme-color" content="#0ea5e9">
+<link rel="icon" href="icon-ore.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon-ore.svg">
+
+<!--
+  Versione MOBILE della stessa app — usa lo stesso progetto Firebase e
+  quindi gli stessi dati di index.html (versione desktop). Non serve
+  configurare nulla di diverso: la firebaseConfig qui sotto è identica.
+-->
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+
+<style>
+  :root{
+    --bg:#0f172a; --panel:#1a2436; --panel2:#212d42; --border:#2c3a52;
+    --text:#e2e8f0; --muted:#8fa1b8; --accent:#38bdf8; --accent2:#0ea5e9;
+    --green:#22c55e; --red:#ef4444; --amber:#f59e0b;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{height:100%;margin:0;}
+  body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;background:var(--bg);color:var(--text);font-size:15px;-webkit-font-smoothing:antialiased;}
+  .hidden{display:none !important;}
+
+  .app-shell{display:flex;flex-direction:column;min-height:100vh;padding-bottom:76px;}
+
+  .topbar{position:sticky;top:0;z-index:5;background:var(--panel);border-bottom:1px solid var(--border);padding:10px 14px;}
+  .topbar-row1{display:flex;align-items:center;justify-content:space-between;}
+  .topbar h1{font-size:15px;margin:0;font-weight:700;}
+  .conn{display:flex;align-items:center;gap:5px;font-size:10px;color:var(--muted);text-transform:uppercase;}
+  .conn-dot{width:6px;height:6px;border-radius:50%;background:var(--red);}
+  .conn-dot.on{background:var(--green);}
+  .logout-btn{background:none;border:1px solid var(--border);color:var(--muted);font-size:12px;padding:8px 14px;border-radius:6px;min-height:36px;}
+
+  .date-nav{display:flex;align-items:center;justify-content:center;gap:10px;padding:8px 0 2px;}
+  .date-nav button.nav-arrow{width:40px;height:40px;border-radius:8px;border:1px solid var(--border);background:var(--panel2);color:var(--text);font-size:18px;}
+  .date-nav .current-period{font-weight:700;min-width:130px;text-align:center;font-size:14px;}
+  .date-nav select{background:var(--panel2);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:9px 10px;font-size:15px;min-height:40px;}
+
+  .banner{background:#3a2a10;border:1px solid #6b4e17;color:#f2c94c;padding:10px 14px;font-size:12px;}
+  .banner.err{background:#3a1414;border-color:#6b1f1f;color:#f2948c;}
+
+  .content{padding:12px 12px 20px;}
+
+  .summary-scroll{display:flex;gap:8px;overflow-x:auto;padding-bottom:6px;margin-bottom:12px;-webkit-overflow-scrolling:touch;}
+  .card{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:10px 14px;flex:0 0 auto;min-width:118px;}
+  .card .label{font-size:9.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.3px;}
+  .card .value{font-size:17px;font-weight:700;margin-top:3px;}
+  .saldo-pos{color:var(--green);}
+  .saldo-neg{color:var(--red);}
+
+  .day-card{background:var(--panel);border:1px solid var(--border);border-radius:10px;margin-bottom:8px;overflow:hidden;}
+  .day-card.weekend .day-header{color:var(--amber);}
+  .day-card.compiled{border-color:var(--accent2);}
+  .day-header{display:flex;align-items:center;justify-content:space-between;padding:12px 14px;cursor:pointer;}
+  .day-header .dleft{display:flex;flex-direction:column;}
+  .day-header .dname{font-weight:700;font-size:14px;}
+  .day-header .dsub{font-size:11px;color:var(--muted);margin-top:2px;}
+  .day-header .dright{display:flex;align-items:center;gap:8px;}
+  .day-header .ore-badge{font-weight:700;font-size:14px;color:var(--accent);}
+  .day-header .chevron{color:var(--muted);font-size:12px;transition:transform .15s;}
+  .day-card.open .chevron{transform:rotate(90deg);}
+
+  .day-body{display:none;padding:0 14px 14px;border-top:1px solid var(--border);}
+  .day-card.open .day-body{display:block;}
+  .field-row{display:flex;gap:10px;margin-top:12px;}
+  .field{flex:1;display:flex;flex-direction:column;gap:4px;}
+  .field label{font-size:10.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.3px;}
+  input[type=time], input[type=number], input[type=text], input[type=email], input[type=password], select, textarea{
+    width:100%;padding:12px 10px;font-size:16px;border-radius:8px;border:1px solid var(--border);
+    background:var(--panel2);color:var(--text);
+  }
+  input:focus, select:focus, textarea:focus{outline:none;border-color:var(--accent);}
+  .hm-row{display:flex;gap:6px;align-items:center;}
+  .hm-row input{width:100%;}
+  .hm-row span{font-size:12px;color:var(--muted);flex-shrink:0;}
+
+  .codici-row{display:flex;gap:6px;margin-top:12px;flex-wrap:wrap;}
+  .codice-chip{flex:1;min-width:54px;text-align:center;padding:13px 4px;border-radius:8px;border:1px solid var(--border);background:var(--panel2);font-size:13px;font-weight:600;color:var(--muted);cursor:pointer;user-select:none;}
+  .codice-chip.on{background:var(--accent2);border-color:var(--accent2);color:#fff;}
+
+  textarea{resize:vertical;min-height:44px;font-family:inherit;}
+
+  .bottom-tabs{position:fixed;bottom:0;left:0;right:0;display:flex;background:var(--panel);border-top:1px solid var(--border);z-index:10;padding-bottom:env(safe-area-inset-bottom);}
+  .bottom-tab{flex:1;text-align:center;padding:12px 0 10px;color:var(--muted);font-size:11px;font-weight:600;}
+  .bottom-tab.active{color:var(--accent);}
+  .bottom-tab .ic{font-size:19px;display:block;margin-bottom:3px;}
+
+  .riep-list{margin-top:14px;}
+  .riep-row{display:flex;justify-content:space-between;padding:9px 12px;border-bottom:1px solid var(--border);font-size:13px;}
+  .riep-row:last-child{border-bottom:none;}
+  .riep-row .cnt{font-weight:700;color:var(--accent);}
+  .riep-empty{color:var(--muted);font-size:13px;text-align:center;padding:16px;}
+
+  .status{font-size:11px;color:var(--muted);margin-top:6px;text-align:center;}
+  .status.saved{color:var(--green);}
+  .status.err{color:var(--red);}
+
+  button.primary{background:var(--accent2);border:none;color:#fff;font-weight:600;padding:13px 16px;border-radius:8px;font-size:14px;width:100%;margin-top:10px;}
+
+  .login-shell{position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;z-index:100;padding:20px;}
+  .login-box{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:28px 22px;width:100%;max-width:340px;}
+  .login-box h2{margin:0 0 4px;font-size:17px;}
+  .login-box p{margin:0 0 16px;font-size:12.5px;color:var(--muted);}
+  .login-box input{margin-bottom:12px;padding-top:12px;padding-bottom:12px;}
+  .login-error{color:var(--red);font-size:12px;margin-top:8px;min-height:14px;}
+</style>
+</head>
+<body>
+
+<div id="app" class="app-shell hidden">
+  <div class="topbar">
+    <div class="topbar-row1">
+      <div>
+        <h1>Monitoraggio Ore</h1>
+        <div class="conn"><span class="conn-dot" id="connDot"></span><span id="connLabel">connessione...</span></div>
+      </div>
+      <button class="logout-btn" id="btnLogout">Esci</button>
+    </div>
+    <div class="date-nav">
+      <a href="../index.html" class="logout-btn" style="text-decoration:none;display:inline-flex;align-items:center">&#8249; Turni</a>
+      <button class="nav-arrow" id="prevMonth">&#8249;</button>
+      <div class="current-period" id="currentPeriod">-</div>
+      <button class="nav-arrow" id="nextMonth">&#8250;</button>
+      <select id="selAnno"></select>
+    </div>
+  </div>
+
+  <div class="banner hidden" id="banner"></div>
+
+  <div class="content" id="content-dettaglio">
+    <div class="summary-scroll" id="summaryCards"></div>
+    <div id="dayList"></div>
+    <div class="status" id="saveStatus">Le modifiche vengono salvate automaticamente su Firebase.</div>
+  </div>
+
+  <div class="content hidden" id="content-riepilogo">
+    <div class="summary-scroll" id="riepilogoCards"></div>
+    <div class="card" style="min-width:auto;width:100%;padding:12px 4px;">
+      <div class="label" style="padding-left:10px;">Conteggio turni nel mese</div>
+      <div class="riep-list" id="riepilogoLista"></div>
+    </div>
+    <button class="primary" onclick="exportCSV()">Esporta CSV mese</button>
+  </div>
+
+  <div class="bottom-tabs">
+    <div class="bottom-tab active" data-tab="dettaglio"><span class="ic">&#128197;</span>Dettaglio</div>
+    <div class="bottom-tab" data-tab="riepilogo"><span class="ic">&#128202;</span>Riepilogo</div>
+  </div>
+</div>
+
+<div class="login-shell" id="loginShell">
+  <div class="login-box">
+    <h2>Monitoraggio Ore</h2>
+    <p>Accesso riservato — inserisci le tue credenziali.</p>
+    <input type="email" id="loginEmail" placeholder="Email" autocomplete="username">
+    <input type="password" id="loginPassword" placeholder="Password" autocomplete="current-password">
+    <button class="primary" id="btnLogin">Accedi</button>
+    <div class="login-error" id="loginError"></div>
+  </div>
+</div>
+
+<script>
+/* =========================================================================
+   1. CONFIGURAZIONE FIREBASE — stessa del progetto foglio-ore-bf9c2
+   ========================================================================= */
+const firebaseConfig = {
+  apiKey: "AIzaSyCBiJ4p3kucfFuCdqNBL43WL6g-IzGMDoc",
+  authDomain: "foglio-ore-bf9c2.firebaseapp.com",
+  databaseURL: "https://foglio-ore-bf9c2-default-rtdb.europe-west1.firebasedatabase.app",
+  projectId: "foglio-ore-bf9c2",
+  storageBucket: "foglio-ore-bf9c2.firebasestorage.app",
+  messagingSenderId: "775356430505",
+  appId: "1:775356430505:web:01cefa56a5757ac9a391b8"
+};
+
+let db = null;
+let auth = null;
+let firebaseReady = false;
+try{
+  firebase.initializeApp(firebaseConfig);
+  auth = firebase.auth();
+  db = firebase.database();
+  firebaseReady = true;
+}catch(err){
+  showBanner("Impossibile inizializzare Firebase: controlla la firebaseConfig in cima al file.", true);
+}
+
+/* =========================================================================
+   1bis. LOGIN / LOGOUT
+   ========================================================================= */
+const loginShell = document.getElementById('loginShell');
+const appShell = document.getElementById('app');
+
+function doLogin(){
+  const email = document.getElementById('loginEmail').value.trim();
+  const password = document.getElementById('loginPassword').value;
+  const errEl = document.getElementById('loginError');
+  errEl.textContent = '';
+  if(!email || !password){ errEl.textContent = "Inserisci email e password."; return; }
+  auth.signInWithEmailAndPassword(email, password).catch(err=>{
+    errEl.textContent = "Accesso non riuscito: " + (err.code === 'auth/invalid-credential' || err.code === 'auth/wrong-password' || err.code === 'auth/user-not-found' ? "email o password errate." : err.message);
+  });
+}
+document.getElementById('btnLogin').addEventListener('click', doLogin);
+document.getElementById('loginPassword').addEventListener('keydown', (e)=>{ if(e.key==='Enter') doLogin(); });
+document.getElementById('loginEmail').addEventListener('keydown', (e)=>{ if(e.key==='Enter') doLogin(); });
+document.getElementById('btnLogout').addEventListener('click', ()=> auth.signOut());
+
+if(firebaseReady){
+  auth.onAuthStateChanged(user=>{
+    if(user){
+      loginShell.classList.add('hidden');
+      appShell.classList.remove('hidden');
+      initAppData();
+    }else{
+      loginShell.classList.remove('hidden');
+      appShell.classList.add('hidden');
+    }
+  });
+}
+
+/* =========================================================================
+   2. COSTANTI
+   ========================================================================= */
+const MESI = ["Gennaio","Febbraio","Marzo","Aprile","Maggio","Giugno","Luglio","Agosto","Settembre","Ottobre","Novembre","Dicembre"];
+const TURNI = [
+  "","M1-RhoFiera","M2-Bisceglie","M3-SestoFS","M-Pagano","P5-SestoFS","P6-Pagano",
+  "M1-Cologno","M2-Famagosta","M3-CnaGobba","P7-Cologno","P-CnaGobba",
+  "M1-SanDonato","M2-Comasina","P4-SanDonato","P5-Comasina",
+  "M-SanSiro","P-SanSiro","M-Linate","P-Linate","M","P",
+  "G","Riposo","Scomputo"
+];
+const ASSENZE = ["","Ferie","Malattia","Permesso"];
+const STRAORD_TIPI = ["","Straordinario","Scomputo maturato","Scomputo utilizzato"];
+const CODICI = [
+  {key:'cod331', label:'331'},
+  {key:'cod338', label:'338'},
+  {key:'cod354', label:'354'},
+  {key:'cod386', label:'386'},
+  {key:'cod387', label:'387'}
+];
+
+/* =========================================================================
+   3. STATO
+   ========================================================================= */
+let oreCache = {};  // { "YYYY-MM-DD": {...record} }
+const now = new Date();
+let currentMese = now.getMonth();
+let currentAnno = now.getFullYear();
+let currentTab = 'dettaglio';
+let openDay = null; // data della card attualmente espansa
+
+function calcOre(inizio, fine){
+  if(!inizio || !fine) return 0;
+  const [h1,m1] = String(inizio).split(':').map(Number);
+  const [h2,m2] = String(fine).split(':').map(Number);
+  let minuti = (h2*60+m2) - (h1*60+m1);
+  if(minuti < 0) minuti += 24*60;
+  return minuti/60;
+}
+function fmtOre(v){ return v ? v.toFixed(2) : "0.00"; }
+function pad(n){ return n.toString().padStart(2,'0'); }
+function daysInMonth(mese, anno){ return new Date(anno, mese+1, 0).getDate(); }
+function straordDecimal(rec){
+  if(rec.straordinarioH !== undefined || rec.straordinarioM !== undefined){
+    const h = parseInt(rec.straordinarioH) || 0;
+    const m = parseInt(rec.straordinarioM) || 0;
+    return h + (m/60);
+  }
+  return parseFloat(rec.straordinarioOre) || 0;
+}
+function fmtOreMin(decimalOre){
+  const totMin = Math.round(decimalOre * 60);
+  const h = Math.floor(totMin / 60);
+  const m = totMin % 60;
+  return `${h}h ${pad(m)}m`;
+}
+
+function showBanner(msg, isErr){
+  const b = document.getElementById('banner');
+  b.textContent = msg;
+  b.classList.remove('hidden');
+  b.classList.toggle('err', !!isErr);
+}
+function setConn(on, label){
+  document.getElementById('connDot').classList.toggle('on', on);
+  document.getElementById('connLabel').textContent = label;
+}
+
+/* =========================================================================
+   4. FIREBASE: caricamento in tempo reale
+   ========================================================================= */
+function initAppData(){
+  if(window.__oreListenerAttached) return;
+  window.__oreListenerAttached = true;
+
+  setConn(false, "connessione...");
+  db.ref('.info/connected').on('value', snap=>{
+    setConn(!!snap.val(), snap.val() ? "online" : "offline");
+  });
+
+  db.ref('ore').on('value', snap=>{
+    oreCache = snap.val() || {};
+    renderAll();
+  }, err=>{
+    showBanner("Errore nel caricamento da Firebase: " + err.message, true);
+  });
+}
+
+function setField(date, field, value){
+  if(!firebaseReady) return;
+  db.ref(`ore/${date}/${field}`).set(value).then(()=>{
+    const status = document.getElementById('saveStatus');
+    status.textContent = "Salvato ✓ (" + new Date().toLocaleTimeString('it-IT') + ")";
+    status.classList.remove('err'); status.classList.add('saved');
+  }).catch(err=>{
+    const status = document.getElementById('saveStatus');
+    status.textContent = "Errore salvataggio: " + err.message;
+    status.classList.remove('saved'); status.classList.add('err');
+  });
+}
+
+/* =========================================================================
+   5. NAVIGAZIONE MESE/ANNO E TAB
+   ========================================================================= */
+const selAnno = document.getElementById('selAnno');
+for(let y = now.getFullYear()-1; y <= now.getFullYear()+1; y++){
+  const opt = document.createElement('option');
+  opt.value = y; opt.textContent = y;
+  if(y === currentAnno) opt.selected = true;
+  selAnno.appendChild(opt);
+}
+selAnno.addEventListener('change', ()=>{ currentAnno = parseInt(selAnno.value); openDay=null; renderAll(); });
+
+document.getElementById('prevMonth').addEventListener('click', ()=>{
+  currentMese--;
+  if(currentMese < 0){ currentMese = 11; currentAnno--; selAnno.value = currentAnno; }
+  openDay = null;
+  renderAll();
+});
+document.getElementById('nextMonth').addEventListener('click', ()=>{
+  currentMese++;
+  if(currentMese > 11){ currentMese = 0; currentAnno++; selAnno.value = currentAnno; }
+  openDay = null;
+  renderAll();
+});
+
+document.querySelectorAll('.bottom-tab').forEach(t=>{
+  t.addEventListener('click', ()=>{
+    document.querySelectorAll('.bottom-tab').forEach(x=>x.classList.remove('active'));
+    t.classList.add('active');
+    currentTab = t.dataset.tab;
+    document.getElementById('content-dettaglio').classList.toggle('hidden', currentTab !== 'dettaglio');
+    document.getElementById('content-riepilogo').classList.toggle('hidden', currentTab !== 'riepilogo');
+    renderAll();
+  });
+});
+
+function updatePeriodLabel(){
+  document.getElementById('currentPeriod').textContent = `${MESI[currentMese]} ${currentAnno}`;
+}
+function renderAll(){
+  updatePeriodLabel();
+  if(currentTab === 'dettaglio') renderDettaglio();
+  else renderRiepilogo();
+}
+
+/* =========================================================================
+   6. TAB DETTAGLIO — lista di schede per giorno
+   ========================================================================= */
+function renderDettaglio(){
+  const mese = currentMese, anno = currentAnno;
+  const nDays = daysInMonth(mese, anno);
+  const list = document.getElementById('dayList');
+  list.innerHTML = '';
+
+  let totOre = 0, totStraord = 0, totScomputoMaturato = 0, totScomputoUtilizzato = 0;
+  const totCodici = {cod331:0, cod338:0, cod354:0, cod386:0, cod387:0};
+
+  for(let d=1; d<=nDays; d++){
+    const dateStr = `${anno}-${pad(mese+1)}-${pad(d)}`;
+    const rec = oreCache[dateStr] || {};
+    const ore = calcOre(rec.entrata, rec.uscita);
+    totOre += ore;
+    const straordOre = straordDecimal(rec);
+    if(rec.straordinarioTipo === 'Straordinario') totStraord += straordOre;
+    if(rec.straordinarioTipo === 'Scomputo maturato') totScomputoMaturato += straordOre;
+    if(rec.straordinarioTipo === 'Scomputo utilizzato') totScomputoUtilizzato += straordOre;
+    CODICI.forEach(c => { if(rec[c.key]) totCodici[c.key]++; });
+
+    const dow = new Date(anno, mese, d).getDay();
+    const isWeekend = dow === 0 || dow === 6;
+    const dowLabel = ["Domenica","Lunedì","Martedì","Mercoledì","Giovedì","Venerdì","Sabato"][dow];
+    const isCompiled = !!(rec.entrata || rec.uscita || rec.turno || rec.assenza || rec.note);
+    const isOpen = openDay === dateStr;
+
+    const subParts = [];
+    if(rec.turno) subParts.push(rec.turno);
+    if(rec.assenza) subParts.push(rec.assenza);
+    const sub = subParts.length ? subParts.join(' · ') : 'Nessun dato';
+
+    const card = document.createElement('div');
+    card.className = 'day-card' + (isWeekend?' weekend':'') + (isCompiled?' compiled':'') + (isOpen?' open':'');
+
+    const turnoOptions = TURNI.map(t => `<option value="${t}" ${rec.turno===t?'selected':''}>${t||'—'}</option>`).join('');
+    const assenzaOptions = ASSENZE.map(a => `<option value="${a}" ${rec.assenza===a?'selected':''}>${a||'—'}</option>`).join('');
+    const straordTipoOptions = STRAORD_TIPI.map(s => `<option value="${s}" ${rec.straordinarioTipo===s?'selected':''}>${s||'—'}</option>`).join('');
+
+    let codiceChips = '';
+    CODICI.forEach(c=>{
+      const on = !!rec[c.key];
+      codiceChips += `<div class="codice-chip ${on?'on':''}" data-field="${c.key}" data-date="${dateStr}">${c.label}</div>`;
+    });
+
+    card.innerHTML = `
+      <div class="day-header" data-date="${dateStr}">
+        <div class="dleft">
+          <div class="dname">${pad(d)} ${dowLabel}</div>
+          <div class="dsub">${sub}</div>
+        </div>
+        <div class="dright">
+          ${ore ? `<span class="ore-badge">${fmtOre(ore)}h</span>` : ''}
+          <span class="chevron">&#9656;</span>
+        </div>
+      </div>
+      <div class="day-body">
+        <div class="field-row">
+          <div class="field"><label>Entrata</label><input type="time" data-field="entrata" data-date="${dateStr}" value="${rec.entrata||''}"></div>
+          <div class="field"><label>Uscita</label><input type="time" data-field="uscita" data-date="${dateStr}" value="${rec.uscita||''}"></div>
+        </div>
+        <div class="field-row">
+          <div class="field"><label>Turno</label><select data-field="turno" data-date="${dateStr}">${turnoOptions}</select></div>
+          <div class="field"><label>Assenza</label><select data-field="assenza" data-date="${dateStr}">${assenzaOptions}</select></div>
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label>Straordinario / Scomputo</label>
+            <select data-field="straordinarioTipo" data-date="${dateStr}">${straordTipoOptions}</select>
+          </div>
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label>Ore e minuti</label>
+            <div class="hm-row">
+              <input type="number" min="0" placeholder="0" data-field="straordinarioH" data-date="${dateStr}" value="${rec.straordinarioH||''}"><span>h</span>
+              <input type="number" min="0" max="59" placeholder="0" data-field="straordinarioM" data-date="${dateStr}" value="${rec.straordinarioM||''}"><span>m</span>
+            </div>
+          </div>
+        </div>
+        <div class="field">
+          <label style="margin-top:12px;">Codici</label>
+          <div class="codici-row">${codiceChips}</div>
+        </div>
+        <div class="field" style="margin-top:12px;">
+          <label>Note</label>
+          <textarea data-field="note" data-date="${dateStr}" placeholder="note...">${rec.note||''}</textarea>
+        </div>
+      </div>
+    `;
+    list.appendChild(card);
+  }
+
+  document.getElementById('summaryCards').innerHTML = `
+    <div class="card"><div class="label">Ore effettive</div><div class="value">${fmtOre(totOre)}</div></div>
+    <div class="card"><div class="label">Straordinario</div><div class="value">${fmtOreMin(totStraord)}</div></div>
+    <div class="card"><div class="label">Scomputo maturato</div><div class="value">${fmtOreMin(totScomputoMaturato)}</div></div>
+    <div class="card"><div class="label">Scomputo utilizzato</div><div class="value">${fmtOreMin(totScomputoUtilizzato)}</div></div>
+    <div class="card"><div class="label">331</div><div class="value">${totCodici.cod331}</div></div>
+    <div class="card"><div class="label">338</div><div class="value">${totCodici.cod338}</div></div>
+    <div class="card"><div class="label">354</div><div class="value">${totCodici.cod354}</div></div>
+    <div class="card"><div class="label">386</div><div class="value">${totCodici.cod386}</div></div>
+    <div class="card"><div class="label">387</div><div class="value">${totCodici.cod387}</div></div>
+  `;
+
+  // Apri/chiudi scheda al tocco dell'header
+  list.querySelectorAll('.day-header').forEach(h=>{
+    h.addEventListener('click', ()=>{
+      const date = h.dataset.date;
+      openDay = (openDay === date) ? null : date;
+      renderDettaglio();
+    });
+  });
+  // Salvataggio sui campi (ferma la propagazione per non richiudere la scheda)
+  list.querySelectorAll('input, select, textarea').forEach(inp=>{
+    inp.addEventListener('click', e=> e.stopPropagation());
+    inp.addEventListener('change', (e)=> setField(e.target.dataset.date, e.target.dataset.field, e.target.value));
+  });
+  list.querySelectorAll('.codice-chip').forEach(chip=>{
+    chip.addEventListener('click', (e)=>{
+      e.stopPropagation();
+      const newVal = !chip.classList.contains('on');
+      chip.classList.toggle('on', newVal);
+      setField(chip.dataset.date, chip.dataset.field, newVal);
+    });
+  });
+}
+
+/* =========================================================================
+   6bis. TAB RIEPILOGO
+   ========================================================================= */
+function renderRiepilogo(){
+  const mese = currentMese, anno = currentAnno;
+  const nDays = daysInMonth(mese, anno);
+
+  const conteggioTurni = {};
+  let totStraordMese = 0, totMaturatoMese = 0, totUtilizzatoMese = 0;
+  for(let d=1; d<=nDays; d++){
+    const dateStr = `${anno}-${pad(mese+1)}-${pad(d)}`;
+    const rec = oreCache[dateStr];
+    if(!rec) continue;
+    if(rec.turno){ conteggioTurni[rec.turno] = (conteggioTurni[rec.turno]||0) + 1; }
+    const straordOre = straordDecimal(rec);
+    if(rec.straordinarioTipo === 'Straordinario') totStraordMese += straordOre;
+    if(rec.straordinarioTipo === 'Scomputo maturato') totMaturatoMese += straordOre;
+    if(rec.straordinarioTipo === 'Scomputo utilizzato') totUtilizzatoMese += straordOre;
+  }
+
+  let totMaturatoGlobale = 0, totUtilizzatoGlobale = 0;
+  Object.keys(oreCache).forEach(dateStr=>{
+    const rec = oreCache[dateStr];
+    const straordOre = straordDecimal(rec);
+    if(rec.straordinarioTipo === 'Scomputo maturato') totMaturatoGlobale += straordOre;
+    if(rec.straordinarioTipo === 'Scomputo utilizzato') totUtilizzatoGlobale += straordOre;
+  });
+  const saldoGlobale = totMaturatoGlobale - totUtilizzatoGlobale;
+
+  document.getElementById('riepilogoCards').innerHTML = `
+    <div class="card"><div class="label">Straordinario (mese)</div><div class="value">${fmtOreMin(totStraordMese)}</div></div>
+    <div class="card"><div class="label">Scomputo maturato (mese)</div><div class="value">${fmtOreMin(totMaturatoMese)}</div></div>
+    <div class="card"><div class="label">Scomputo utilizzato (mese)</div><div class="value">${fmtOreMin(totUtilizzatoMese)}</div></div>
+    <div class="card"><div class="label">Saldo scomputo totale</div><div class="value ${saldoGlobale>=0?'saldo-pos':'saldo-neg'}">${fmtOreMin(saldoGlobale)}</div></div>
+  `;
+
+  const lista = document.getElementById('riepilogoLista');
+  const turniUsati = Object.keys(conteggioTurni).sort((a,b)=> conteggioTurni[b]-conteggioTurni[a]);
+  if(turniUsati.length === 0){
+    lista.innerHTML = `<div class="riep-empty">Nessun turno registrato in questo mese.</div>`;
+  }else{
+    lista.innerHTML = turniUsati.map(t => `<div class="riep-row"><span>${t}</span><span class="cnt">${conteggioTurni[t]}</span></div>`).join('');
+  }
+}
+
+/* =========================================================================
+   7. EXPORT CSV
+   ========================================================================= */
+window.exportCSV = function(){
+  const mese = currentMese, anno = currentAnno;
+  const nDays = daysInMonth(mese, anno);
+
+  const rows = [[`Monitoraggio Ore — Periodo: ${MESI[mese]} ${anno}`]];
+  rows.push([]);
+  rows.push(["Giorno","Entrata","Uscita","Ore","Turno","Assenza","Tipo Straord/Scomputo","Ore","Minuti","331 Galleria","338 FF","354 Mancato pasto","386 Guida treno","387 Guida auto","Note"]);
+
+  let totOre = 0;
+  for(let d=1; d<=nDays; d++){
+    const dateStr = `${anno}-${pad(mese+1)}-${pad(d)}`;
+    const rec = oreCache[dateStr] || {};
+    const ore = calcOre(rec.entrata, rec.uscita);
+    totOre += ore;
+    rows.push([
+      `${pad(d)}/${pad(mese+1)}/${anno}`, rec.entrata || '', rec.uscita || '', fmtOre(ore),
+      rec.turno || '', rec.assenza || '', rec.straordinarioTipo || '', rec.straordinarioH || '', rec.straordinarioM || '',
+      rec.cod331 ? 'X' : '', rec.cod338 ? 'X' : '', rec.cod354 ? 'X' : '', rec.cod386 ? 'X' : '', rec.cod387 ? 'X' : '',
+      rec.note || ''
+    ]);
+  }
+  rows.push([]);
+  rows.push(["Totale ore effettive", fmtOre(totOre)]);
+
+  const csv = rows.map(r=>r.join(';')).join('\n');
+  const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = `Ore_${MESI[mese]}_${anno}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+};
+
+updatePeriodLabel();
+
+if('serviceWorker' in navigator){
+  window.addEventListener('load', ()=>{
+    navigator.serviceWorker.register('sw-ore.js').catch(err=>{
+      console.warn('Registrazione service worker fallita:', err);
+    });
+  });
+}
+</script>
+</body>
+</html>
