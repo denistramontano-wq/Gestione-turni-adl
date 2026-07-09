@@ -42,13 +42,28 @@
     --bg:#F4F3FB; --panel:#fff; --panel2:#F8F7FF; --border:#E2DFFA;
     --text:#1A1735; --muted:#6B6891; --accent:#534AB7; --accent2:#3C3489;
     --green:#1E6B3A; --red:#D84040; --amber:#856404;
+    --sidebar:#151A34; --sidebar-hover:#1F2547; --sidebar-active:#2A2F5C;
+    --sidebar-text:#AEB3D6; --sidebar-text-dim:#6E749E;
   }
   *{box-sizing:border-box;}
-  html,body{height:100%;margin:0;}
+  html,body{height:100%;margin:0;overflow:hidden;}
   body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;background:var(--bg);color:var(--text);font-size:14px;}
   .hidden{display:none !important;}
 
-  .app-shell{display:flex;flex-direction:column;min-height:100vh;}
+  .app-shell{display:grid;grid-template-columns:240px 1fr;height:100vh;}
+  .main-col{display:flex;flex-direction:column;height:100vh;min-width:0;}
+
+  .sidebar{background:var(--sidebar);display:flex;flex-direction:column;height:100vh;overflow-y:auto;}
+  .sidebar-brand{color:#fff;font-size:16px;font-weight:800;letter-spacing:-.2px;padding:24px 22px 16px;border-bottom:1px solid rgba(255,255,255,.08);margin-bottom:10px;}
+  .sidebar-brand span{display:block;font-size:10.5px;font-weight:600;color:var(--sidebar-text);text-transform:uppercase;letter-spacing:.08em;margin-top:4px;}
+  .side-link{display:flex;align-items:center;gap:10px;margin:0 12px 10px;padding:11px 14px;border-radius:10px;color:var(--sidebar-text);font-size:13px;font-weight:600;text-decoration:none;transition:background .12s,color .12s;}
+  .side-link:hover{background:var(--sidebar-hover);color:#fff;}
+  .side-nav{display:flex;flex-direction:column;gap:2px;padding:0 12px;}
+  .side-nav .tab{display:flex;align-items:center;gap:10px;margin:0;padding:11px 14px;border-radius:10px;color:var(--sidebar-text);font-size:13.5px;font-weight:600;cursor:pointer;border-bottom:none;transition:background .12s,color .12s;}
+  .side-nav .tab:hover{background:var(--sidebar-hover);color:#fff;}
+  .side-nav .tab.active{background:var(--sidebar-active);color:#fff;border-bottom:none;}
+  .side-icon{font-size:15px;width:18px;text-align:center;flex-shrink:0;}
+  .sidebar-foot{margin-top:auto;padding:16px 22px;color:var(--sidebar-text-dim);font-size:10px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;border-top:1px solid rgba(255,255,255,.08);}
 
   .topbar{display:flex;align-items:center;justify-content:space-between;padding:0 22px;height:60px;border-bottom:1px solid var(--border);background:var(--panel);flex-shrink:0;flex-wrap:wrap;gap:8px;}
   .topbar h1{font-size:16px;margin:0;font-weight:700;letter-spacing:.2px;}
@@ -109,6 +124,20 @@
   .saldo-pos{color:var(--green);}
   .saldo-neg{color:var(--red);}
 
+  .toolbar{display:flex;justify-content:flex-end;gap:8px;margin-bottom:12px;flex-wrap:wrap;}
+
+  .charts-row{display:flex;gap:14px;flex-wrap:wrap;margin-bottom:14px;}
+  .chart-card{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:16px 18px;flex:1;min-width:280px;}
+  .chart-card h3{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin:0 0 12px;font-weight:700;}
+  .chart-body{display:flex;gap:18px;align-items:center;}
+  .pie-canvas{width:104px;height:104px;border-radius:50%;flex-shrink:0;background:var(--panel2);}
+  .pie-legend{flex:1;display:flex;flex-direction:column;gap:6px;font-size:12px;min-width:0;}
+  .pie-legend-row{display:flex;align-items:center;gap:7px;}
+  .pie-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0;}
+  .pie-legend-label{flex:1;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .pie-legend-val{color:var(--muted);font-weight:600;flex-shrink:0;}
+  .pie-empty{color:var(--muted);font-size:12px;}
+
   button.primary{background:var(--accent);border:none;color:#fff;font-weight:600;padding:8px 16px;border-radius:10px;cursor:pointer;font-size:13px;white-space:nowrap;transition:background .15s;}
   button.primary:hover{background:var(--accent2);}
 
@@ -127,6 +156,16 @@
 <body>
 
 <div id="app" class="app-shell hidden">
+  <div class="sidebar">
+    <div class="sidebar-brand">Turni ADL<span>Foglio Ore</span></div>
+    <a href="../index.html" class="side-link"><span class="side-icon">&#8249;</span>Torna a Turni ADL</a>
+    <div class="side-nav">
+      <div class="tab active" data-tab="dettaglio"><span class="side-icon">&#128197;</span>Dettaglio</div>
+      <div class="tab" data-tab="riepilogo"><span class="side-icon">&#128202;</span>Riepilogo</div>
+    </div>
+    <div class="sidebar-foot">ADL · ATM Servizi</div>
+  </div>
+  <div class="main-col">
   <div class="banner hidden" id="banner"></div>
   <div class="topbar">
     <div>
@@ -134,7 +173,6 @@
       <div class="conn"><span class="conn-dot" id="connDot"></span><span id="connLabel">connessione...</span></div>
     </div>
     <div class="date-nav">
-      <a href="../index.html" class="logout-btn" style="text-decoration:none;display:inline-flex;align-items:center">&#8249; Turni ADL</a>
       <select id="selDipendente" style="min-width:150px"></select>
       <button class="nav-arrow" id="prevMonth">&#8249;</button>
       <div class="current-period" id="currentPeriod">-</div>
@@ -143,22 +181,11 @@
     </div>
   </div>
 
-  <div class="tabs">
-    <div class="tab active" data-tab="dettaglio">Dettaglio</div>
-    <div class="tab" data-tab="riepilogo">Riepilogo</div>
-  </div>
-
   <div class="content" id="content-dettaglio">
-    <div class="legend">
-      <span><b>331</b> Galleria</span>
-      <span><b>338</b> FF</span>
-      <span><b>354</b> Mancato pasto</span>
-      <span><b>386</b> Guida treno</span>
-      <span><b>387</b> Guida autovettura</span>
-      <button class="primary" style="margin-left:auto;" onclick="applyTurniSyncAll(null,false)">🔄 Sincronizza turni</button>
+    <div class="toolbar">
+      <button class="primary" onclick="applyTurniSyncAll(null,false)">🔄 Sincronizza turni</button>
       <button class="primary" onclick="exportCSV()">Esporta CSV mese</button>
     </div>
-    <div class="summary-row" id="summaryCards"></div>
     <div class="table-wrap">
       <table id="tblDettaglio">
         <thead>
@@ -186,8 +213,21 @@
 
   <div class="content hidden" id="content-riepilogo">
     <div class="summary-row" id="riepilogoCards"></div>
-    <div class="legend" style="margin-top:4px;">
-      <b>Conteggio turni</b> — mese selezionato in alto
+    <div class="charts-row">
+      <div class="chart-card">
+        <h3>Distribuzione turni (mese)</h3>
+        <div class="chart-body">
+          <div class="pie-canvas" id="pieTurni"></div>
+          <div class="pie-legend" id="legendTurni"></div>
+        </div>
+      </div>
+      <div class="chart-card">
+        <h3>Distribuzione codici (mese)</h3>
+        <div class="chart-body">
+          <div class="pie-canvas" id="pieCodici"></div>
+          <div class="pie-legend" id="legendCodici"></div>
+        </div>
+      </div>
     </div>
     <div class="table-wrap">
       <table class="riep-table">
@@ -197,6 +237,7 @@
         <tbody id="tbodyTurniRiepilogo"></tbody>
       </table>
     </div>
+  </div>
   </div>
 </div>
 
@@ -276,6 +317,11 @@ const CODICI = [
   {key:'cod386', label:'386'},
   {key:'cod387', label:'387'}
 ];
+const CODICI_DESC = {
+  cod331:'331 Galleria', cod338:'338 FF', cod354:'354 Mancato pasto',
+  cod386:'386 Guida treno', cod387:'387 Guida autovettura'
+};
+const PIE_COLORS = ['#534AB7','#0EA5E9','#F59E0B','#22C55E','#EF4444','#A855F7','#14B8A6','#EC4899','#84CC16','#F97316'];
 
 /* =========================================================================
    3. STATO
@@ -563,19 +609,10 @@ function renderDettaglio(){
   const mese = currentMese, anno = currentAnno;
   const nDays = daysInMonth(mese, anno);
 
-  let totOre = 0, totStraord = 0, totScomputoMaturato = 0, totScomputoUtilizzato = 0;
-  const totCodici = {cod331:0, cod338:0, cod354:0, cod386:0, cod387:0};
-
   for(let d=1; d<=nDays; d++){
     const dateStr = `${anno}-${pad(mese+1)}-${pad(d)}`;
     const rec = oreCache[dateStr] || {};
     const ore = calcOre(rec.entrata, rec.uscita);
-    totOre += ore;
-    const straordOre = straordDecimal(rec);
-    if(rec.straordinarioTipo === 'Straordinario') totStraord += straordOre;
-    if(rec.straordinarioTipo === 'Scomputo maturato') totScomputoMaturato += straordOre;
-    if(rec.straordinarioTipo === 'Scomputo utilizzato') totScomputoUtilizzato += straordOre;
-    CODICI.forEach(c => { if(rec[c.key]) totCodici[c.key]++; });
 
     const dow = new Date(anno, mese, d).getDay();
     const isWeekend = dow === 0 || dow === 6;
@@ -616,18 +653,6 @@ function renderDettaglio(){
     tbody.appendChild(tr);
   }
 
-  document.getElementById('summaryCards').innerHTML = `
-    <div class="card"><div class="label">Ore effettive (mese)</div><div class="value">${fmtOre(totOre)}</div></div>
-    <div class="card"><div class="label">Straordinario</div><div class="value">${fmtOreMin(totStraord)}</div></div>
-    <div class="card"><div class="label">Scomputo maturato</div><div class="value">${fmtOreMin(totScomputoMaturato)}</div></div>
-    <div class="card"><div class="label">Scomputo utilizzato</div><div class="value">${fmtOreMin(totScomputoUtilizzato)}</div></div>
-    <div class="card"><div class="label">331 Galleria</div><div class="value">${totCodici.cod331}</div></div>
-    <div class="card"><div class="label">338 FF</div><div class="value">${totCodici.cod338}</div></div>
-    <div class="card"><div class="label">354 Mancato pasto</div><div class="value">${totCodici.cod354}</div></div>
-    <div class="card"><div class="label">386 Guida treno</div><div class="value">${totCodici.cod386}</div></div>
-    <div class="card"><div class="label">387 Guida auto</div><div class="value">${totCodici.cod387}</div></div>
-  `;
-
   tbody.querySelectorAll('input[type=time], input[type=number], input.note, select.cell-select').forEach(inp=>{
     inp.addEventListener('change', (e)=> setField(e.target.dataset.date, e.target.dataset.field, e.target.value));
   });
@@ -644,40 +669,77 @@ function renderDettaglio(){
 /* =========================================================================
    6bis. TAB RIEPILOGO — conteggio turni + saldo scomputo
    ========================================================================= */
+// Scomputo totale = scomputo maturato - scomputo utilizzato, ma calcolato
+// solo sulle ore del mese selezionato e del mese precedente (monte ore a
+// scorrimento su 2 mesi, non un accumulo su tutta la storia).
+function scomputoTotale2Mesi(mese, anno){
+  const prevMese = mese===0 ? 11 : mese-1;
+  const prevAnno = mese===0 ? anno-1 : anno;
+  const curPrefix = `${anno}-${pad(mese+1)}`;
+  const prevPrefix = `${prevAnno}-${pad(prevMese+1)}`;
+  let maturato = 0, utilizzato = 0;
+  Object.keys(oreCache).forEach(dateStr=>{
+    if(!dateStr.startsWith(curPrefix) && !dateStr.startsWith(prevPrefix)) return;
+    const rec = oreCache[dateStr];
+    const straordOre = straordDecimal(rec);
+    if(rec.straordinarioTipo === 'Scomputo maturato') maturato += straordOre;
+    if(rec.straordinarioTipo === 'Scomputo utilizzato') utilizzato += straordOre;
+  });
+  return maturato - utilizzato;
+}
+
+function renderPieChart(canvasId, legendId, data){
+  const canvas = document.getElementById(canvasId);
+  const legend = document.getElementById(legendId);
+  if(!canvas || !legend) return;
+  const total = data.reduce((s,d)=>s+d.value, 0);
+  if(!total){
+    canvas.style.background = 'var(--panel2)';
+    legend.innerHTML = '<div class="pie-empty">Nessun dato nel mese selezionato.</div>';
+    return;
+  }
+  let acc = 0;
+  const stops = [];
+  const rows = [];
+  data.forEach((d,i)=>{
+    if(!d.value) return;
+    const color = PIE_COLORS[i % PIE_COLORS.length];
+    const start = (acc/total*360).toFixed(2);
+    acc += d.value;
+    const end = (acc/total*360).toFixed(2);
+    stops.push(`${color} ${start}deg ${end}deg`);
+    const pct = Math.round(d.value/total*100);
+    rows.push(`<div class="pie-legend-row"><span class="pie-dot" style="background:${color}"></span><span class="pie-legend-label">${d.label}</span><span class="pie-legend-val">${d.value} · ${pct}%</span></div>`);
+  });
+  canvas.style.background = `conic-gradient(${stops.join(', ')})`;
+  legend.innerHTML = rows.join('');
+}
+
 function renderRiepilogo(){
   const mese = currentMese, anno = currentAnno;
   const nDays = daysInMonth(mese, anno);
 
-  // Conteggio turni e totali straordinario/scomputo per il mese selezionato
+  // Ore, turni e codici del mese selezionato
   const conteggioTurni = {};
-  let totStraordMese = 0, totMaturatoMese = 0, totUtilizzatoMese = 0;
+  const totCodici = {cod331:0, cod338:0, cod354:0, cod386:0, cod387:0};
+  let totOreMese = 0, totStraordMese = 0;
   for(let d=1; d<=nDays; d++){
     const dateStr = `${anno}-${pad(mese+1)}-${pad(d)}`;
     const rec = oreCache[dateStr];
     if(!rec) continue;
+    totOreMese += calcOre(rec.entrata, rec.uscita);
     if(rec.turno){ conteggioTurni[rec.turno] = (conteggioTurni[rec.turno]||0) + 1; }
     const straordOre = straordDecimal(rec);
     if(rec.straordinarioTipo === 'Straordinario') totStraordMese += straordOre;
-    if(rec.straordinarioTipo === 'Scomputo maturato') totMaturatoMese += straordOre;
-    if(rec.straordinarioTipo === 'Scomputo utilizzato') totUtilizzatoMese += straordOre;
+    CODICI.forEach(c => { if(rec[c.key]) totCodici[c.key]++; });
   }
 
-  // Saldo scomputo cumulativo: su TUTTI i dati salvati (non solo il mese),
-  // perché è un monte ore che si accumula e si consuma nel tempo.
-  let totMaturatoGlobale = 0, totUtilizzatoGlobale = 0;
-  Object.keys(oreCache).forEach(dateStr=>{
-    const rec = oreCache[dateStr];
-    const straordOre = straordDecimal(rec);
-    if(rec.straordinarioTipo === 'Scomputo maturato') totMaturatoGlobale += straordOre;
-    if(rec.straordinarioTipo === 'Scomputo utilizzato') totUtilizzatoGlobale += straordOre;
-  });
-  const saldoGlobale = totMaturatoGlobale - totUtilizzatoGlobale;
+  const scomputoTotale = scomputoTotale2Mesi(mese, anno);
 
   document.getElementById('riepilogoCards').innerHTML = `
+    <div class="card"><div class="label">Ore effettive (mese)</div><div class="value">${fmtOre(totOreMese)}</div></div>
     <div class="card"><div class="label">Straordinario (mese)</div><div class="value">${fmtOreMin(totStraordMese)}</div></div>
-    <div class="card"><div class="label">Scomputo maturato (mese)</div><div class="value">${fmtOreMin(totMaturatoMese)}</div></div>
-    <div class="card"><div class="label">Scomputo utilizzato (mese)</div><div class="value">${fmtOreMin(totUtilizzatoMese)}</div></div>
-    <div class="card"><div class="label">Saldo scomputo (totale)</div><div class="value ${saldoGlobale>=0?'saldo-pos':'saldo-neg'}">${fmtOreMin(saldoGlobale)}</div></div>
+    <div class="card"><div class="label">Scomputo totale (mese + precedente)</div><div class="value ${scomputoTotale>=0?'saldo-pos':'saldo-neg'}">${fmtOreMin(scomputoTotale)}</div></div>
   `;
 
   const tbody = document.getElementById('tbodyTurniRiepilogo');
@@ -687,6 +749,9 @@ function renderRiepilogo(){
   }else{
     tbody.innerHTML = turniUsati.map(t => `<tr><td>${t}</td><td style="text-align:center;">${conteggioTurni[t]}</td></tr>`).join('');
   }
+
+  renderPieChart('pieTurni', 'legendTurni', turniUsati.map(t=>({label:t, value:conteggioTurni[t]})));
+  renderPieChart('pieCodici', 'legendCodici', CODICI.map(c=>({label:CODICI_DESC[c.key], value:totCodici[c.key]})));
 }
 
 /* =========================================================================

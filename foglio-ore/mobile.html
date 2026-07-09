@@ -98,6 +98,17 @@
   .riep-row .cnt{font-weight:700;color:var(--accent);}
   .riep-empty{color:var(--muted);font-size:13px;text-align:center;padding:16px;}
 
+  .chart-card{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:14px 16px;margin-top:10px;}
+  .chart-card h3{font-size:10.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.3px;margin:0 0 10px;font-weight:700;}
+  .chart-body{display:flex;gap:14px;align-items:center;}
+  .pie-canvas{width:84px;height:84px;border-radius:50%;flex-shrink:0;background:var(--panel2);}
+  .pie-legend{flex:1;display:flex;flex-direction:column;gap:5px;font-size:11.5px;min-width:0;}
+  .pie-legend-row{display:flex;align-items:center;gap:6px;}
+  .pie-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
+  .pie-legend-label{flex:1;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .pie-legend-val{color:var(--muted);font-weight:600;flex-shrink:0;}
+  .pie-empty{color:var(--muted);font-size:11.5px;}
+
   .status{font-size:11px;color:var(--muted);margin-top:6px;text-align:center;}
   .status.saved{color:var(--green);}
   .status.err{color:var(--red);}
@@ -137,7 +148,6 @@
   <div class="banner hidden" id="banner"></div>
 
   <div class="content" id="content-dettaglio">
-    <div class="summary-scroll" id="summaryCards"></div>
     <button class="primary" style="margin-top:0;margin-bottom:10px;" onclick="applyTurniSyncAll(null,false)">🔄 Sincronizza turni</button>
     <div id="dayList"></div>
     <div class="status" id="saveStatus">Le modifiche vengono salvate automaticamente su Firebase.</div>
@@ -145,7 +155,21 @@
 
   <div class="content hidden" id="content-riepilogo">
     <div class="summary-scroll" id="riepilogoCards"></div>
-    <div class="card" style="min-width:auto;width:100%;padding:12px 4px;">
+    <div class="chart-card">
+      <h3>Distribuzione turni (mese)</h3>
+      <div class="chart-body">
+        <div class="pie-canvas" id="pieTurni"></div>
+        <div class="pie-legend" id="legendTurni"></div>
+      </div>
+    </div>
+    <div class="chart-card">
+      <h3>Distribuzione codici (mese)</h3>
+      <div class="chart-body">
+        <div class="pie-canvas" id="pieCodici"></div>
+        <div class="pie-legend" id="legendCodici"></div>
+      </div>
+    </div>
+    <div class="card" style="min-width:auto;width:100%;padding:12px 4px;margin-top:10px;">
       <div class="label" style="padding-left:10px;">Conteggio turni nel mese</div>
       <div class="riep-list" id="riepilogoLista"></div>
     </div>
@@ -234,6 +258,11 @@ const CODICI = [
   {key:'cod386', label:'386'},
   {key:'cod387', label:'387'}
 ];
+const CODICI_DESC = {
+  cod331:'331 Galleria', cod338:'338 FF', cod354:'354 Mancato pasto',
+  cod386:'386 Guida treno', cod387:'387 Guida autovettura'
+};
+const PIE_COLORS = ['#534AB7','#0EA5E9','#F59E0B','#22C55E','#EF4444','#A855F7','#14B8A6','#EC4899','#84CC16','#F97316'];
 
 /* =========================================================================
    3. STATO
@@ -520,19 +549,10 @@ function renderDettaglio(){
   const list = document.getElementById('dayList');
   list.innerHTML = '';
 
-  let totOre = 0, totStraord = 0, totScomputoMaturato = 0, totScomputoUtilizzato = 0;
-  const totCodici = {cod331:0, cod338:0, cod354:0, cod386:0, cod387:0};
-
   for(let d=1; d<=nDays; d++){
     const dateStr = `${anno}-${pad(mese+1)}-${pad(d)}`;
     const rec = oreCache[dateStr] || {};
     const ore = calcOre(rec.entrata, rec.uscita);
-    totOre += ore;
-    const straordOre = straordDecimal(rec);
-    if(rec.straordinarioTipo === 'Straordinario') totStraord += straordOre;
-    if(rec.straordinarioTipo === 'Scomputo maturato') totScomputoMaturato += straordOre;
-    if(rec.straordinarioTipo === 'Scomputo utilizzato') totScomputoUtilizzato += straordOre;
-    CODICI.forEach(c => { if(rec[c.key]) totCodici[c.key]++; });
 
     const dow = new Date(anno, mese, d).getDay();
     const isWeekend = dow === 0 || dow === 6;
@@ -606,18 +626,6 @@ function renderDettaglio(){
     list.appendChild(card);
   }
 
-  document.getElementById('summaryCards').innerHTML = `
-    <div class="card"><div class="label">Ore effettive</div><div class="value">${fmtOre(totOre)}</div></div>
-    <div class="card"><div class="label">Straordinario</div><div class="value">${fmtOreMin(totStraord)}</div></div>
-    <div class="card"><div class="label">Scomputo maturato</div><div class="value">${fmtOreMin(totScomputoMaturato)}</div></div>
-    <div class="card"><div class="label">Scomputo utilizzato</div><div class="value">${fmtOreMin(totScomputoUtilizzato)}</div></div>
-    <div class="card"><div class="label">331</div><div class="value">${totCodici.cod331}</div></div>
-    <div class="card"><div class="label">338</div><div class="value">${totCodici.cod338}</div></div>
-    <div class="card"><div class="label">354</div><div class="value">${totCodici.cod354}</div></div>
-    <div class="card"><div class="label">386</div><div class="value">${totCodici.cod386}</div></div>
-    <div class="card"><div class="label">387</div><div class="value">${totCodici.cod387}</div></div>
-  `;
-
   // Apri/chiudi scheda al tocco dell'header
   list.querySelectorAll('.day-header').forEach(h=>{
     h.addEventListener('click', ()=>{
@@ -644,37 +652,76 @@ function renderDettaglio(){
 /* =========================================================================
    6bis. TAB RIEPILOGO
    ========================================================================= */
+// Scomputo totale = scomputo maturato - scomputo utilizzato, ma calcolato
+// solo sulle ore del mese selezionato e del mese precedente (monte ore a
+// scorrimento su 2 mesi, non un accumulo su tutta la storia).
+function scomputoTotale2Mesi(mese, anno){
+  const prevMese = mese===0 ? 11 : mese-1;
+  const prevAnno = mese===0 ? anno-1 : anno;
+  const curPrefix = `${anno}-${pad(mese+1)}`;
+  const prevPrefix = `${prevAnno}-${pad(prevMese+1)}`;
+  let maturato = 0, utilizzato = 0;
+  Object.keys(oreCache).forEach(dateStr=>{
+    if(!dateStr.startsWith(curPrefix) && !dateStr.startsWith(prevPrefix)) return;
+    const rec = oreCache[dateStr];
+    const straordOre = straordDecimal(rec);
+    if(rec.straordinarioTipo === 'Scomputo maturato') maturato += straordOre;
+    if(rec.straordinarioTipo === 'Scomputo utilizzato') utilizzato += straordOre;
+  });
+  return maturato - utilizzato;
+}
+
+function renderPieChart(canvasId, legendId, data){
+  const canvas = document.getElementById(canvasId);
+  const legend = document.getElementById(legendId);
+  if(!canvas || !legend) return;
+  const total = data.reduce((s,d)=>s+d.value, 0);
+  if(!total){
+    canvas.style.background = 'var(--panel2)';
+    legend.innerHTML = '<div class="pie-empty">Nessun dato nel mese selezionato.</div>';
+    return;
+  }
+  let acc = 0;
+  const stops = [];
+  const rows = [];
+  data.forEach((d,i)=>{
+    if(!d.value) return;
+    const color = PIE_COLORS[i % PIE_COLORS.length];
+    const start = (acc/total*360).toFixed(2);
+    acc += d.value;
+    const end = (acc/total*360).toFixed(2);
+    stops.push(`${color} ${start}deg ${end}deg`);
+    const pct = Math.round(d.value/total*100);
+    rows.push(`<div class="pie-legend-row"><span class="pie-dot" style="background:${color}"></span><span class="pie-legend-label">${d.label}</span><span class="pie-legend-val">${d.value} · ${pct}%</span></div>`);
+  });
+  canvas.style.background = `conic-gradient(${stops.join(', ')})`;
+  legend.innerHTML = rows.join('');
+}
+
 function renderRiepilogo(){
   const mese = currentMese, anno = currentAnno;
   const nDays = daysInMonth(mese, anno);
 
   const conteggioTurni = {};
-  let totStraordMese = 0, totMaturatoMese = 0, totUtilizzatoMese = 0;
+  const totCodici = {cod331:0, cod338:0, cod354:0, cod386:0, cod387:0};
+  let totOreMese = 0, totStraordMese = 0;
   for(let d=1; d<=nDays; d++){
     const dateStr = `${anno}-${pad(mese+1)}-${pad(d)}`;
     const rec = oreCache[dateStr];
     if(!rec) continue;
+    totOreMese += calcOre(rec.entrata, rec.uscita);
     if(rec.turno){ conteggioTurni[rec.turno] = (conteggioTurni[rec.turno]||0) + 1; }
     const straordOre = straordDecimal(rec);
     if(rec.straordinarioTipo === 'Straordinario') totStraordMese += straordOre;
-    if(rec.straordinarioTipo === 'Scomputo maturato') totMaturatoMese += straordOre;
-    if(rec.straordinarioTipo === 'Scomputo utilizzato') totUtilizzatoMese += straordOre;
+    CODICI.forEach(c => { if(rec[c.key]) totCodici[c.key]++; });
   }
 
-  let totMaturatoGlobale = 0, totUtilizzatoGlobale = 0;
-  Object.keys(oreCache).forEach(dateStr=>{
-    const rec = oreCache[dateStr];
-    const straordOre = straordDecimal(rec);
-    if(rec.straordinarioTipo === 'Scomputo maturato') totMaturatoGlobale += straordOre;
-    if(rec.straordinarioTipo === 'Scomputo utilizzato') totUtilizzatoGlobale += straordOre;
-  });
-  const saldoGlobale = totMaturatoGlobale - totUtilizzatoGlobale;
+  const scomputoTotale = scomputoTotale2Mesi(mese, anno);
 
   document.getElementById('riepilogoCards').innerHTML = `
-    <div class="card"><div class="label">Straordinario (mese)</div><div class="value">${fmtOreMin(totStraordMese)}</div></div>
-    <div class="card"><div class="label">Scomputo maturato (mese)</div><div class="value">${fmtOreMin(totMaturatoMese)}</div></div>
-    <div class="card"><div class="label">Scomputo utilizzato (mese)</div><div class="value">${fmtOreMin(totUtilizzatoMese)}</div></div>
-    <div class="card"><div class="label">Saldo scomputo totale</div><div class="value ${saldoGlobale>=0?'saldo-pos':'saldo-neg'}">${fmtOreMin(saldoGlobale)}</div></div>
+    <div class="card"><div class="label">Ore effettive</div><div class="value">${fmtOre(totOreMese)}</div></div>
+    <div class="card"><div class="label">Straordinario</div><div class="value">${fmtOreMin(totStraordMese)}</div></div>
+    <div class="card"><div class="label">Scomputo totale (2 mesi)</div><div class="value ${scomputoTotale>=0?'saldo-pos':'saldo-neg'}">${fmtOreMin(scomputoTotale)}</div></div>
   `;
 
   const lista = document.getElementById('riepilogoLista');
@@ -684,6 +731,9 @@ function renderRiepilogo(){
   }else{
     lista.innerHTML = turniUsati.map(t => `<div class="riep-row"><span>${t}</span><span class="cnt">${conteggioTurni[t]}</span></div>`).join('');
   }
+
+  renderPieChart('pieTurni', 'legendTurni', turniUsati.map(t=>({label:t, value:conteggioTurni[t]})));
+  renderPieChart('pieCodici', 'legendCodici', CODICI.map(c=>({label:CODICI_DESC[c.key], value:totCodici[c.key]})));
 }
 
 /* =========================================================================
