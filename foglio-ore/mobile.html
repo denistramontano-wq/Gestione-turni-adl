@@ -99,6 +99,9 @@
   .riep-row .cnt{font-weight:700;color:var(--accent);}
   .riep-empty{color:var(--muted);font-size:13px;text-align:center;padding:16px;}
 
+  .extra-pref{display:flex;flex-direction:column;gap:5px;font-size:11.5px;color:var(--muted);margin-bottom:10px;}
+  .extra-pref select{padding:10px;font-size:14px;font-weight:600;border-radius:8px;border:1px solid var(--border);background:var(--panel2);color:var(--text);}
+
   .chart-card{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:14px 16px;margin-top:10px;}
   .chart-card h3{font-size:10.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.3px;margin:0 0 10px;font-weight:700;}
   .chart-body{display:flex;gap:14px;align-items:center;}
@@ -149,6 +152,13 @@
   <div class="banner hidden" id="banner"></div>
 
   <div class="content" id="content-dettaglio">
+    <div class="extra-pref">
+      <label for="selPrefExtra">Ore oltre le 8h, assegnale a:</label>
+      <select id="selPrefExtra" onchange="setPreferenzaExtra(this.value)">
+        <option value="Straordinario">Straordinario</option>
+        <option value="Scomputo maturato">Scomputo</option>
+      </select>
+    </div>
     <button class="primary" style="margin-top:0;margin-bottom:10px;" onclick="applyTurniSyncAll(null,false)">🔄 Sincronizza turni</button>
     <div id="dayList"></div>
     <div class="status" id="saveStatus">Le modifiche vengono salvate automaticamente su Firebase.</div>
@@ -286,6 +296,7 @@ let oreCache = {};  // { "YYYY-MM-DD": {...record} } del dipendente selezionato
 let currentDipendente = null;   // chiave (nome) del dipendente selezionato
 let dipendentiList = [];        // [{key,label}]
 let oreListenerRef = null;      // riferimento Firebase in ascolto, staccato al cambio dipendente
+let dipendentePreferenza = 'Straordinario'; // come assegnare le ore oltre le 8h per il dipendente corrente
 const now = new Date();
 let currentMese = now.getMonth();
 let currentAnno = now.getFullYear();
@@ -361,6 +372,24 @@ function switchDipendente(nomeKey){
   oreCache = {};
   renderAll();
   attachOreListener();
+  loadPreferenzaExtra();
+}
+
+/* Preferenza (per dipendente) su come assegnare automaticamente le ore che
+   superano le 8h giornaliere: "Straordinario" oppure "Scomputo maturato".
+   Resta comunque modificabile a mano giorno per giorno. */
+function loadPreferenzaExtra(){
+  const sel = document.getElementById('selPrefExtra');
+  if(!currentDipendente){ dipendentePreferenza = 'Straordinario'; if(sel) sel.value = dipendentePreferenza; return; }
+  db.ref('dipendentiPrefs/'+currentDipendente+'/tipoExtra').once('value').then(snap=>{
+    dipendentePreferenza = snap.val() || 'Straordinario';
+    if(sel) sel.value = dipendentePreferenza;
+  }).catch(()=>{});
+}
+function setPreferenzaExtra(valore){
+  dipendentePreferenza = valore;
+  if(!currentDipendente) return;
+  db.ref('dipendentiPrefs/'+currentDipendente).update({tipoExtra: valore}).catch(()=>{});
 }
 
 function attachOreListener(){
@@ -406,7 +435,7 @@ function initDipendentiEMigrazione(){
 
       currentDipendente = initial;
       buildDipendentiSelect();
-      if(initial) attachOreListener();
+      if(initial){ attachOreListener(); loadPreferenzaExtra(); }
       else showBanner("Nessun dipendente disponibile: apri il Foglio Ore dall'app Turni ADL per sincronizzare l'elenco.", true);
 
       applyTurniSyncAll(payload, true);
@@ -433,12 +462,41 @@ function initDipendentiEMigrazione(){
   });
 }
 
+// Oltre le 8h di lavoro effettivo in un giorno, le ore eccedenti vengono
+// proposte in automatico come Straordinario o Scomputo maturato (a scelta
+// del dipendente, vedi selettore "Ore extra" in cima alla pagina). Il
+// calcolo automatico non tocca mai un valore inserito a mano: appena si
+// modifica manualmente tipo/ore/minuti dello straordinario, straordAuto
+// passa a false e resta protetto da futuri ricalcoli automatici.
+function calcolaStraordExtra(rec, entrata, uscita, preferenza){
+  rec = rec || {};
+  const eraAuto = rec.straordAuto !== false;
+  const ore = calcOre(entrata, uscita);
+  if(ore > 8){
+    if(!eraAuto) return null; // l'utente ha già scelto un valore manuale: non toccarlo
+    const extra = ore - 8;
+    const h = Math.floor(extra);
+    const m = Math.round((extra - h) * 60);
+    return {straordinarioTipo: preferenza || 'Straordinario', straordinarioH: h, straordinarioM: m, straordAuto: true};
+  }
+  if(eraAuto && rec.straordinarioTipo) return {straordinarioTipo: '', straordinarioH: '', straordinarioM: ''};
+  return null;
+}
+
 function setField(date, field, value){
   if(!firebaseReady || !currentDipendente) return;
   const updates = {[field]: value};
   // Un campo orario/turno modificato a mano non deve più essere toccato
   // dalla sincronizzazione automatica dei turni.
   if(field==='entrata'||field==='uscita'||field==='turno'||field==='cod331') updates.autoSync = false;
+  if(field==='straordinarioTipo'||field==='straordinarioH'||field==='straordinarioM') updates.straordAuto = false;
+  if(field==='entrata' || field==='uscita'){
+    const rec = oreCache[date] || {};
+    const entrata = field==='entrata' ? value : rec.entrata;
+    const uscita  = field==='uscita'  ? value : rec.uscita;
+    const extra = calcolaStraordExtra(rec, entrata, uscita, dipendentePreferenza);
+    if(extra) Object.assign(updates, extra);
+  }
   db.ref(`ore/${currentDipendente}/${date}`).update(updates).then(()=>{
     const status = document.getElementById('saveStatus');
     status.textContent = "Salvato ✓ (" + new Date().toLocaleTimeString('it-IT') + ")";
@@ -473,13 +531,15 @@ function applyTurniSyncAll(payload, silent){
   const oggi = new Date();
   const oggiStr = oggi.getFullYear()+'-'+pad(oggi.getMonth()+1)+'-'+pad(oggi.getDate());
 
-  db.ref('ore').once('value').then(snap=>{
+  Promise.all([db.ref('ore').once('value'), db.ref('dipendentiPrefs').once('value')]).then(([snap, prefsSnap])=>{
     const root = snap.val() || {};
+    const prefsRoot = prefsSnap.val() || {};
     const updates = {};
     let count = 0;
     Object.keys(payload.dipendenti).forEach(nomeKey=>{
       const giorni = payload.dipendenti[nomeKey].giorni || {};
       const recDip = root[nomeKey] || {};
+      const preferenza = (prefsRoot[nomeKey] && prefsRoot[nomeKey].tipoExtra) || 'Straordinario';
       Object.keys(giorni).forEach(dateStr=>{
         if(dateStr > oggiStr) return;
         const rec = recDip[dateStr] || {};
@@ -493,6 +553,10 @@ function applyTurniSyncAll(payload, silent){
         updates['ore/'+nomeKey+'/'+dateStr+'/turno'] = src.turno||'';
         updates['ore/'+nomeKey+'/'+dateStr+'/cod331'] = cod331;
         updates['ore/'+nomeKey+'/'+dateStr+'/autoSync'] = true;
+        const extra = calcolaStraordExtra(rec, src.entrata||'', src.uscita||'', preferenza);
+        if(extra){
+          Object.keys(extra).forEach(k=> updates['ore/'+nomeKey+'/'+dateStr+'/'+k] = extra[k]);
+        }
         count++;
       });
     });

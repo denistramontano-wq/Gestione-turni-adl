@@ -212,6 +212,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .dt-assenza-badge{display:inline-flex;align-items:center;gap:3px;margin-left:6px;padding:2px 7px;border-radius:20px;font-size:10px;font-weight:700;background:#FEE2E2;color:#B91C1C}
 .dt-btn-edit{background:var(--purple-lt);border:none;border-radius:6px;padding:4px 7px;cursor:pointer;font-size:14px;margin-right:3px}
 .dt-btn-del{background:#FFEEEE;border:none;border-radius:6px;padding:4px 7px;cursor:pointer;font-size:14px}
+.dt-turno-select{max-width:190px;padding:4px 6px;font-size:12px;font-weight:600;border-radius:8px;border:1.5px solid var(--border2);background:var(--surface);color:var(--text);outline:none;cursor:pointer}
+.dt-turno-select:focus{border-color:var(--purple)}
 
 /* ── GRID VIEW ── */
 .grid-layout{display:flex;gap:10px;padding:0 16px 14px}
@@ -1548,7 +1550,8 @@ function renderTurni(){
           ${d.giorno?`<span class="dt-daynum">${d.giorno}</span><span class="dt-dow${isWE?' dt-dow-we':''}">${giornoDow}</span>`:'<span style="color:var(--text3)">—</span>'}
         </td>
         <td class="dt-cell">
-          <span class="turno-pill ${t.cls}" style="font-size:12px"><span class="pill-dot"></span>${t.label}${t.dest?' '+t.dest:''}</span>
+          ${isAdmin?`<select class="dt-turno-select" onclick="event.stopPropagation()" onchange="quickChangeTurno(${idx}, this.value)">${buildTurnoOptionsHTML(d.turno)}</select>`
+            :`<span class="turno-pill ${t.cls}" style="font-size:12px"><span class="pill-dot"></span>${t.label}${t.dest?' '+t.dest:''}</span>`}
           ${d.ff?`<span style="background:#DC2626;color:white;font-size:10px;font-weight:800;padding:2px 6px;border-radius:4px;margin-left:4px;letter-spacing:.05em">FF</span>`:''}
           ${assenza?`<span class="dt-assenza-badge">${assIcon} ${assenza}</span>`:''}
         </td>
@@ -1851,6 +1854,55 @@ function saveTurno(){
   if(giorno)turniSelDay=giorno;
   buildMonthScroll();buildTurniDayStrip();renderTurni();pushToFirebase();
   showToast('✅ Turno aggiunto');
+}
+
+/* Stesso elenco/raggruppamento del select #et-turno nella scheda di modifica,
+   riusato per il menù a tendina rapido nella vista a singolo dipendente. */
+function buildTurnoOptionsHTML(selected){
+  const gruppi = [
+    {label:'🔴 Linea 1', opzioni:[
+      ['M1-RhoFiera','M1 – Rho Fiera (Mattina)'],['M2-Bisceglie','M2 – Bisceglie (Mattina)'],
+      ['M3-SestoFS','M3 – Sesto FS (Mattina)'],['M-Pagano','M – Pagano (Mattina)'],
+      ['P5-SestoFS','P5 – Sesto FS (Pomeriggio)'],['P6-Pagano','P6 – Pagano (Pomeriggio)']
+    ]},
+    {label:'🟢 Linea 2', opzioni:[
+      ['M1-Cologno','M1 – Cologno (Mattina)'],['M2-Famagosta','M2 – Famagosta (Mattina)'],
+      ['M3-CnaGobba','M3 – C.na Gobba (Mattina)'],['M-CnaGobba','M – C.na Gobba (Mattina)'],
+      ['P5-Famagosta','P5 – Famagosta (Pomeriggio)'],['P6-CnaGobba','P6 – C.na Gobba (Pomeriggio)'],
+      ['P7-Cologno','P7 – Cologno (Pomeriggio)'],['P-CnaGobba','P – C.na Gobba (Pomeriggio)']
+    ]},
+    {label:'🟡 Linea 3', opzioni:[
+      ['M1-SanDonato','M1 – San Donato (Mattina)'],['M2-Comasina','M2 – Comasina (Mattina)'],
+      ['P4-SanDonato','P4 – San Donato (Pomeriggio)'],['P5-Comasina','P5 – Comasina (Pomeriggio)']
+    ]},
+    {label:'🔵 Linea 4', opzioni:[
+      ['M-Linate','M – Linate (Mattina)'],['P-Linate','P – Linate (Pomeriggio)']
+    ]},
+    {label:'🟣 Linea 5', opzioni:[
+      ['M-SanSiro','M – San Siro (Mattina)'],['P-SanSiro','P – San Siro (Pomeriggio)']
+    ]},
+    {label:'⚫ Altro', opzioni:[
+      ['M','M – Mattino (05:00–14:18)'],['P','P – Pomeriggio (14:00–23:18)'],['G','G – Giornata (09:00–17:00)'],
+      ['Riposo','Riposo'],['Scomputo','Scomputo']
+    ]}
+  ];
+  let html = '';
+  const trovato = gruppi.some(g=>g.opzioni.some(o=>o[0]===selected));
+  if(!trovato && selected) html += `<option value="${selected}" selected>${selected}</option>`;
+  gruppi.forEach(g=>{
+    html += `<optgroup label="${g.label}">` + g.opzioni.map(([v,l])=>
+      `<option value="${v}"${v===selected?' selected':''}>${l}</option>`).join('') + `</optgroup>`;
+  });
+  return html;
+}
+
+/* Cambio turno rapido dalla vista a singolo dipendente, senza aprire la
+   scheda di modifica completa. */
+function quickChangeTurno(idx, nuovoTurno){
+  if(!isAdmin || !nuovoTurno || !data[idx] || data[idx].turno===nuovoTurno) return;
+  data[idx].turno = nuovoTurno;
+  buildTurniDayStrip(); renderTurni(); pushToFirebase();
+  showToast('✅ Turno aggiornato');
 }
 
 function openEditTurno(idx){
