@@ -462,19 +462,25 @@ function initDipendentiEMigrazione(){
   });
 }
 
-// Oltre le 8h di lavoro effettivo in un giorno, le ore eccedenti vengono
-// proposte in automatico come Straordinario o Scomputo maturato (a scelta
-// del dipendente, vedi selettore "Ore extra" in cima alla pagina). Il
-// calcolo automatico non tocca mai un valore inserito a mano: appena si
-// modifica manualmente tipo/ore/minuti dello straordinario, straordAuto
-// passa a false e resta protetto da futuri ricalcoli automatici.
-function calcolaStraordExtra(rec, entrata, uscita, preferenza){
+// Le ore di lavoro effettivo ordinarie sono 7:48 (7.8h) per i turni normali;
+// solo il turno "G" (giornata) ha ordinarie piene a 8h. Oltre la soglia, le
+// ore eccedenti vengono proposte in automatico come Straordinario o
+// Scomputo maturato (a scelta del dipendente, vedi selettore "Ore extra" in
+// cima alla pagina). Il calcolo automatico non tocca mai un valore
+// inserito a mano: appena si modifica manualmente tipo/ore/minuti dello
+// straordinario, straordAuto passa a false e resta protetto da futuri
+// ricalcoli automatici.
+function sogliaOrdinaria(turno){
+  return turno === 'G' ? 8 : 7.8;
+}
+function calcolaStraordExtra(rec, entrata, uscita, preferenza, turno){
   rec = rec || {};
   const eraAuto = rec.straordAuto !== false;
   const ore = calcOre(entrata, uscita);
-  if(ore > 8){
+  const soglia = sogliaOrdinaria(turno !== undefined ? turno : rec.turno);
+  if(ore > soglia){
     if(!eraAuto) return null; // l'utente ha già scelto un valore manuale: non toccarlo
-    const extra = ore - 8;
+    const extra = ore - soglia;
     const h = Math.floor(extra);
     const m = Math.round((extra - h) * 60);
     return {straordinarioTipo: preferenza || 'Straordinario', straordinarioH: h, straordinarioM: m, straordAuto: true};
@@ -490,11 +496,12 @@ function setField(date, field, value){
   // dalla sincronizzazione automatica dei turni.
   if(field==='entrata'||field==='uscita'||field==='turno'||field==='cod331') updates.autoSync = false;
   if(field==='straordinarioTipo'||field==='straordinarioH'||field==='straordinarioM') updates.straordAuto = false;
-  if(field==='entrata' || field==='uscita'){
+  if(field==='entrata' || field==='uscita' || field==='turno'){
     const rec = oreCache[date] || {};
     const entrata = field==='entrata' ? value : rec.entrata;
     const uscita  = field==='uscita'  ? value : rec.uscita;
-    const extra = calcolaStraordExtra(rec, entrata, uscita, dipendentePreferenza);
+    const turno   = field==='turno'   ? value : rec.turno;
+    const extra = calcolaStraordExtra(rec, entrata, uscita, dipendentePreferenza, turno);
     if(extra) Object.assign(updates, extra);
   }
   db.ref(`ore/${currentDipendente}/${date}`).update(updates).then(()=>{
@@ -551,7 +558,7 @@ function applyTurniSyncAll(payload, silent){
         // Va ricalcolato anche sui giorni già sincronizzati in precedenza,
         // altrimenti i turni sincronizzati prima di questa funzionalità
         // non riceverebbero mai il valore di straordinario/scomputo.
-        const extra = calcolaStraordExtra(rec, src.entrata||'', src.uscita||'', preferenza);
+        const extra = calcolaStraordExtra(rec, src.entrata||'', src.uscita||'', preferenza, src.turno||'');
         const extraInvariato = !extra || (
           (extra.straordinarioTipo||'') === (rec.straordinarioTipo||'') &&
           String(extra.straordinarioH ?? '') === String(rec.straordinarioH ?? '') &&
