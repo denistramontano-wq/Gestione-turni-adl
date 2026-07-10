@@ -612,15 +612,24 @@ function applyTurniSyncAll(payload, silent){
         if(isManual) return;
         const src = giorni[dateStr];
         const cod331 = !!src.presente;
-        if(rec.autoSync===true && rec.entrata===(src.entrata||'') && rec.uscita===(src.uscita||'') && !!rec.cod331===cod331 && rec.turno===(src.turno||'')) return;
+        const syncInvariata = rec.autoSync===true && rec.entrata===(src.entrata||'') && rec.uscita===(src.uscita||'') && !!rec.cod331===cod331 && rec.turno===(src.turno||'');
+        // Oltre le 8h di turno, propone in automatico straordinario/scomputo
+        // (rispettando eventuali valori già inseriti a mano, vedi straordAuto).
+        // Va ricalcolato anche sui giorni già sincronizzati in precedenza,
+        // altrimenti i turni sincronizzati prima di questa funzionalità
+        // (o comunque già "invariati") non riceverebbero mai il valore.
+        const extra = calcolaStraordExtra(rec, src.entrata||'', src.uscita||'', preferenza);
+        const extraInvariato = !extra || (
+          (extra.straordinarioTipo||'') === (rec.straordinarioTipo||'') &&
+          String(extra.straordinarioH ?? '') === String(rec.straordinarioH ?? '') &&
+          String(extra.straordinarioM ?? '') === String(rec.straordinarioM ?? '')
+        );
+        if(syncInvariata && extraInvariato) return;
         updates['ore/'+nomeKey+'/'+dateStr+'/entrata'] = src.entrata||'';
         updates['ore/'+nomeKey+'/'+dateStr+'/uscita'] = src.uscita||'';
         updates['ore/'+nomeKey+'/'+dateStr+'/turno'] = src.turno||'';
         updates['ore/'+nomeKey+'/'+dateStr+'/cod331'] = cod331;
         updates['ore/'+nomeKey+'/'+dateStr+'/autoSync'] = true;
-        // Oltre le 8h di turno, propone in automatico straordinario/scomputo
-        // (rispettando eventuali valori già inseriti a mano, vedi straordAuto).
-        const extra = calcolaStraordExtra(rec, src.entrata||'', src.uscita||'', preferenza);
         if(extra){
           Object.keys(extra).forEach(k=> updates['ore/'+nomeKey+'/'+dateStr+'/'+k] = extra[k]);
         }
